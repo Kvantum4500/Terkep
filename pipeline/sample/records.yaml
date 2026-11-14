@@ -1,0 +1,179 @@
+# KÉZI MINTAADAT – a valós adatfrissítés (GitHub Actions) előtti fejlesztéshez,
+# a tesztekhez és a bemutatóhoz. A koordináták közelítők (emlékezetből),
+# az éles buildben NEM szerepelnek. A rövid leírások saját megfogalmazások.
+#
+# Mezők: n = név, c = kategória, sub = alkategória, lat/lon, co = elvárt
+# vármegye (ellenőrzéshez), s = település, t = szint (1–3), ele = magasság,
+# d = rövid leírás, f = jelzők (showcave, heritage, kektura, ruin)
+records:
+  # --- Budapest -------------------------------------------------------------------
+  - {n: Széchenyi lánchíd, c: hid, sub: függőhíd, lat: 47.4989, lon: 19.0436, co: BU, s: Budapest, t: 1, f: [heritage], d: "Budapest első állandó Duna-hídja, a 19. század közepén épült."}
+  - {n: Margit híd, c: hid, lat: 47.5145, lon: 19.0475, co: BU, s: Budapest, t: 2, d: "A Margit-szigetet is kiszolgáló, könyökszerűen megtört vonalú Duna-híd."}
+  - {n: Erzsébet-kilátó, c: kilato, lat: 47.5181, lon: 18.9590, co: BU, s: Budapest, t: 1, ele: 527, f: [kektura], d: "Neoromán kilátótorony a János-hegy csúcsán, Budapest legmagasabb pontján."}
+  - {n: Mátyás-templom, c: templom, lat: 47.5020, lon: 19.0344, co: BU, s: Budapest, t: 1, f: [heritage], d: "A budai Vár gótikus főtemploma, Zsolnay-kerámia tetőzettel."}
+  - {n: Szent István-bazilika, c: templom, sub: bazilika, lat: 47.5009, lon: 19.0539, co: BU, s: Budapest, t: 1, f: [heritage]}
+  - {n: Dohány utcai zsinagóga, c: templom, sub: zsinagóga, lat: 47.4960, lon: 19.0608, co: BU, s: Budapest, t: 1, f: [heritage], d: "Európa legnagyobb zsinagógája, mór stílusú épület."}
+  - {n: Pál-völgyi-barlang, c: barlang, lat: 47.5336, lon: 19.0186, co: BU, s: Budapest, t: 1, f: [showcave], d: "Budapest leghosszabb barlangja; vezetéssel látogatható."}
+  - {n: Szemlő-hegyi-barlang, c: barlang, lat: 47.5297, lon: 19.0247, co: BU, s: Budapest, t: 2, f: [showcave], d: "Borsókövekről híres, vezetéssel látogatható barlang."}
+  - {n: Gellért-hegy, c: csucs, lat: 47.4867, lon: 19.0469, co: BU, s: Budapest, t: 1, ele: 235, d: "A Duna fölé magasodó dolomithegy a Citadellával és a Szabadság-szoborral."}
+  - {n: Budai Vár, c: var, lat: 47.4962, lon: 19.0396, co: BU, s: Budapest, t: 1, f: [heritage], d: "A budai Várhegy történelmi vára és palotanegyede."}
+  - {n: Aquincum, c: rom, sub: római város, lat: 47.5640, lon: 19.0500, co: BU, s: Budapest, t: 2, f: [heritage], d: "Pannonia Inferior egykori fővárosának romkertje."}
+  - {n: ELTE Füvészkert, c: kert, sub: botanikus kert, lat: 47.4848, lon: 19.0838, co: BU, s: Budapest, t: 2}
+  - {n: Normafa, c: kilatopont, lat: 47.5062, lon: 18.9655, co: BU, s: Budapest, t: 2, d: "Kedvelt kirándulóhely és kilátópont a Budai-hegységben."}
+
+  # --- Pest -----------------------------------------------------------------------
+  - {n: Visegrádi fellegvár, c: var, sub: fellegvár, lat: 47.7942, lon: 18.9811, co: PE, s: Visegrád, t: 1, ele: 328, f: [heritage], d: "A Dunakanyar fölötti hegytetőn álló középkori királyi vár."}
+  - {n: Rám-szakadék, c: volgy, sub: szurdok, lat: 47.7700, lon: 18.9350, co: PE, s: Dömös, t: 1, d: "Létrákkal és kapaszkodókkal járható vadregényes szurdok a Visegrádi-hegységben."}
+  - {n: Holdvilág-árok, c: volgy, sub: szurdok, lat: 47.6750, lon: 19.0050, co: PE, s: Pomáz, t: 2}
+  - {n: Gödöllői Királyi Kastély, c: kastely, lat: 47.5964, lon: 19.3550, co: PE, s: Gödöllő, t: 1, f: [heritage], d: "Barokk kastély, Erzsébet királyné kedvelt tartózkodási helye."}
+  - {n: Ráckevei Savoyai-kastély, c: kastely, lat: 47.1625, lon: 18.9450, co: PE, s: Ráckeve, t: 2, f: [heritage]}
+  - {n: Dobogókő, c: kilatopont, lat: 47.7170, lon: 18.9000, co: PE, s: Pilisszentkereszt, t: 1, ele: 699, f: [kektura], d: "A Visegrádi-hegység legmagasabb pontja, kilátással a Dunakanyarra."}
+  - {n: Prédikálószék, c: csucs, lat: 47.7623, lon: 18.9640, co: PE, s: Dömös, t: 2, ele: 639}
+  - {n: Csóványos, c: csucs, lat: 47.9033, lon: 18.9617, co: PE, s: Diósjenő, t: 1, ele: 938, f: [kektura], d: "A Börzsöny legmagasabb csúcsa, kilátótoronnyal."}
+  - {n: Zsámbéki templomrom, c: rom, sub: templomrom, lat: 47.5487, lon: 18.7184, co: PE, s: Zsámbék, t: 1, f: [heritage, ruin], d: "Román–gótikus premontrei templom romja."}
+  - {n: Váci székesegyház, c: templom, sub: székesegyház, lat: 47.7768, lon: 19.1311, co: PE, s: Vác, t: 2, f: [heritage]}
+  - {n: Vácrátóti Nemzeti Botanikus Kert, c: kert, sub: botanikus kert, lat: 47.7110, lon: 19.2330, co: PE, s: Vácrátót, t: 1}
+  - {n: Szentendrei Skanzen, c: egyeb, sub: szabadtéri múzeum, lat: 47.6800, lon: 19.0480, co: PE, s: Szentendre, t: 2}
+
+  # --- Komárom-Esztergom ----------------------------------------------------------
+  - {n: Esztergomi bazilika, c: templom, sub: bazilika, lat: 47.7980, lon: 18.7360, co: KE, s: Esztergom, t: 1, f: [heritage], d: "Magyarország legnagyobb temploma a Várhegyen."}
+  - {n: Mária Valéria híd, c: hid, lat: 47.7943, lon: 18.7472, co: KE, s: Esztergom, t: 2, d: "Esztergomot és Párkányt összekötő Duna-híd."}
+  - {n: Tatai vár, c: var, lat: 47.6530, lon: 18.3170, co: KE, s: Tata, t: 2, f: [heritage]}
+  - {n: Öreg-tó, c: to, lat: 47.6500, lon: 18.3230, co: KE, s: Tata, t: 2}
+  - {n: Majki kamalduli remeteség, c: templom, sub: kolostor, lat: 47.5300, lon: 18.3120, co: KE, s: Oroszlány, t: 2, f: [heritage]}
+
+  # --- Fejér ----------------------------------------------------------------------
+  - {n: Bory-vár, c: var, lat: 47.1997, lon: 18.4472, co: FE, s: Székesfehérvár, t: 2, d: "Egyetlen ember által évtizedeken át épített, mesebeli várépület."}
+  - {n: Martonvásári Brunszvik-kastély, c: kastely, lat: 47.3150, lon: 18.7880, co: FE, s: Martonvásár, t: 2, f: [heritage]}
+  - {n: Csókakői vár, c: var, sub: várrom, lat: 47.3539, lon: 18.2670, co: FE, s: Csókakő, t: 2, f: [ruin]}
+  - {n: Velencei-tó, c: to, lat: 47.2050, lon: 18.6000, co: FE, s: Velence, t: 1}
+  - {n: Alcsúti Arborétum, c: kert, sub: arborétum, lat: 47.4280, lon: 18.6000, co: FE, s: Alcsútdoboz, t: 2}
+  - {n: Gorsium Régészeti Park, c: rom, sub: római város, lat: 47.0870, lon: 18.4120, co: FE, s: Tác, t: 2}
+
+  # --- Győr-Moson-Sopron ----------------------------------------------------------
+  - {n: Pannonhalmi Bencés Főapátság, c: templom, sub: apátság, lat: 47.5536, lon: 17.7606, co: GS, s: Pannonhalma, t: 1, f: [heritage], d: "Az ezeréves bencés apátság a világörökség része."}
+  - {n: Fertődi Esterházy-kastély, c: kastely, lat: 47.6170, lon: 16.8710, co: GS, s: Fertőd, t: 1, f: [heritage], d: "A „magyar Versailles”, rokokó kastély hatalmas parkkal."}
+  - {n: Soproni Tűztorony, c: kilato, lat: 47.6855, lon: 16.5910, co: GS, s: Sopron, t: 1, f: [heritage]}
+  - {n: Károly-kilátó, c: kilato, lat: 47.6620, lon: 16.5570, co: GS, s: Sopron, t: 2}
+  - {n: Győri Nagyboldogasszony-székesegyház, c: templom, sub: székesegyház, lat: 47.6890, lon: 17.6280, co: GS, s: Győr, t: 2, f: [heritage]}
+  - {n: Fertő tó, c: to, lat: 47.7000, lon: 16.7400, co: GS, s: Fertőrákos, t: 1}
+
+  # --- Vas ------------------------------------------------------------------------
+  - {n: Jáki templom, c: templom, lat: 47.0817, lon: 16.5797, co: VA, s: Ják, t: 1, f: [heritage], d: "Kiemelkedő román stílusú templom gazdagon faragott kapuval."}
+  - {n: Kőszegi Jurisics-vár, c: var, lat: 47.3906, lon: 16.5395, co: VA, s: Kőszeg, t: 1, f: [heritage]}
+  - {n: Írott-kői kilátó, c: kilato, lat: 47.3530, lon: 16.4340, co: VA, s: Kőszeg, t: 1, ele: 882, f: [kektura], d: "A Dunántúl legmagasabb pontján, az osztrák határon álló kilátó."}
+  - {n: Sárvári Nádasdy-vár, c: var, lat: 47.2540, lon: 16.9340, co: VA, s: Sárvár, t: 2, f: [heritage]}
+  - {n: Savaria Isis-szentély, c: rom, lat: 47.2295, lon: 16.6230, co: VA, s: Szombathely, t: 2}
+  - {n: Ság-hegy, c: csucs, sub: vulkáni kúp, lat: 47.1820, lon: 17.1000, co: VA, s: Celldömölk, t: 2, ele: 279}
+
+  # --- Zala -----------------------------------------------------------------------
+  - {n: Hévízi-tó, c: to, sub: termálforrás-tó, lat: 46.7880, lon: 17.1900, co: ZA, s: Hévíz, t: 1, d: "Európa legnagyobb biológiailag aktív, természetes termáltava."}
+  - {n: Keszthelyi Festetics-kastély, c: kastely, lat: 46.7700, lon: 17.2420, co: ZA, s: Keszthely, t: 1, f: [heritage]}
+  - {n: Zalavári Történelmi Emlékpark, c: rom, lat: 46.6650, lon: 17.1580, co: ZA, s: Zalavár, t: 2}
+  - {n: Rezi vár, c: var, sub: várrom, lat: 46.8380, lon: 17.2140, co: ZA, s: Rezi, t: 2, f: [ruin]}
+  - {n: Zalaszántói Béke-sztúpa, c: templom, sub: sztúpa, lat: 46.9060, lon: 17.2560, co: ZA, s: Zalaszántó, t: 2}
+
+  # --- Veszprém -------------------------------------------------------------------
+  - {n: Szent György-hegy, c: szikla, sub: bazaltorgona, lat: 46.8340, lon: 17.4570, co: VE, s: Hegymagas, t: 1, ele: 415, d: "Tanúhegy a Tapolcai-medencében, látványos bazaltorgonákkal."}
+  - {n: Hegyestű, c: szikla, sub: bazaltkúp, lat: 46.9150, lon: 17.6580, co: VE, s: Monoszló, t: 1, d: "Félbevágott bazaltkúp, földtani bemutatóhely kilátóval."}
+  - {n: Tihanyi Bencés Apátság, c: templom, sub: apátság, lat: 46.9140, lon: 17.8900, co: VE, s: Tihany, t: 1, f: [heritage]}
+  - {n: Sümegi vár, c: var, lat: 46.9780, lon: 17.2850, co: VE, s: Sümeg, t: 1, f: [heritage]}
+  - {n: Szigligeti vár, c: var, sub: várrom, lat: 46.8000, lon: 17.4330, co: VE, s: Szigliget, t: 1, f: [heritage, ruin]}
+  - {n: Csesznek vára, c: var, sub: várrom, lat: 47.3540, lon: 17.8820, co: VE, s: Csesznek, t: 2, f: [ruin]}
+  - {n: Kisfaludy-kilátó, c: kilato, lat: 46.8000, lon: 17.5000, co: VE, s: Badacsonytomaj, t: 2}
+  - {n: Kőris-hegy, c: csucs, lat: 47.2950, lon: 17.7550, co: VE, s: Bakonybél, t: 2, ele: 704, f: [kektura], d: "A Bakony legmagasabb pontja."}
+  - {n: Tapolcai-tavasbarlang, c: barlang, lat: 46.8830, lon: 17.4420, co: VE, s: Tapolca, t: 1, f: [showcave], d: "Csónakkal bejárható barlangi tó a város alatt."}
+  - {n: Cuha-völgy, c: volgy, lat: 47.3600, lon: 17.7900, co: GS, s: Bakonyszentlászló, t: 2}
+
+  # --- Somogy ---------------------------------------------------------------------
+  - {n: Kőröshegyi völgyhíd, c: hid, sub: viadukt, lat: 46.8350, lon: 17.9070, co: SO, s: Kőröshegy, t: 1, d: "Az M7-es autópálya közel két kilométeres völgyhídja."}
+  - {n: Somogyvári bencés apátság romjai, c: rom, sub: templomrom, lat: 46.5800, lon: 17.6650, co: SO, s: Somogyvár, t: 2, f: [ruin]}
+  - {n: Balatonboglári Gömbkilátó, c: kilato, lat: 46.7660, lon: 17.6500, co: SO, s: Balatonboglár, t: 2}
+  - {n: Babócsai Basakert, c: kert, lat: 46.0430, lon: 17.3530, co: SO, s: Babócsa, t: 2}
+
+  # --- Baranya --------------------------------------------------------------------
+  - {n: Pécsi székesegyház, c: templom, sub: székesegyház, lat: 46.0780, lon: 18.2260, co: BA, s: Pécs, t: 1, f: [heritage]}
+  - {n: Pécsi ókeresztény sírkamrák, c: rom, lat: 46.0770, lon: 18.2280, co: BA, s: Pécs, t: 1, f: [heritage], d: "Késő római temetkezési emlékek, a világörökség része."}
+  - {n: Siklósi vár, c: var, lat: 45.8540, lon: 18.2970, co: BA, s: Siklós, t: 1, f: [heritage]}
+  - {n: Szigetvári vár, c: var, lat: 46.0510, lon: 17.8000, co: BA, s: Szigetvár, t: 1, f: [heritage]}
+  - {n: Pécsváradi vár, c: var, lat: 46.1600, lon: 18.4200, co: BA, s: Pécsvárad, t: 2}
+  - {n: Abaligeti-barlang, c: barlang, lat: 46.1380, lon: 18.1150, co: BA, s: Abaliget, t: 1, f: [showcave]}
+  - {n: Zengő, c: csucs, lat: 46.1880, lon: 18.4300, co: BA, s: Hosszúhetény, t: 2, ele: 682, f: [kektura]}
+  - {n: Szársomlyó, c: csucs, lat: 45.8530, lon: 18.4180, co: BA, s: Nagyharsány, t: 2, ele: 442}
+  - {n: Orfűi-tó, c: to, lat: 46.1450, lon: 18.1500, co: BA, s: Orfű, t: 2}
+  - {n: Mohácsi Történelmi Emlékhely, c: egyeb, sub: emlékhely, lat: 45.9560, lon: 18.6450, co: BA, s: Sátorhely, t: 2}
+  - {n: Máriagyűdi kegytemplom, c: templom, lat: 45.8630, lon: 18.3260, co: BA, s: Siklós, t: 2}
+
+  # --- Tolna ----------------------------------------------------------------------
+  - {n: Dunaföldvári vár, c: var, lat: 46.8080, lon: 18.9280, co: TO, s: Dunaföldvár, t: 2}
+  - {n: Simontornyai vár, c: var, lat: 46.7500, lon: 18.5560, co: TO, s: Simontornya, t: 2}
+  - {n: Ozorai Pipo-vár, c: var, lat: 46.7520, lon: 18.4000, co: TO, s: Ozora, t: 2}
+
+  # --- Bács-Kiskun ----------------------------------------------------------------
+  - {n: Kalocsai főszékesegyház, c: templom, sub: székesegyház, lat: 46.5280, lon: 18.9850, co: BK, s: Kalocsa, t: 1, f: [heritage]}
+  - {n: Kecskeméti Cifrapalota, c: egyeb, sub: szecessziós palota, lat: 46.9070, lon: 19.6930, co: BK, s: Kecskemét, t: 2, f: [heritage]}
+  - {n: Bugaci puszta, c: egyeb, sub: puszta, lat: 46.6800, lon: 19.6000, co: BK, s: Bugac, t: 1}
+  - {n: Fülöpházi homokbuckák, c: egyeb, sub: homokbucka, lat: 46.8800, lon: 19.4500, co: BK, s: Fülöpháza, t: 2}
+
+  # --- Csongrád-Csanád ------------------------------------------------------------
+  - {n: Szegedi Fogadalmi templom, c: templom, lat: 46.2490, lon: 20.1480, co: CS, s: Szeged, t: 1, f: [heritage]}
+  - {n: Ópusztaszeri Nemzeti Történeti Emlékpark, c: egyeb, sub: emlékpark, lat: 46.4870, lon: 20.0750, co: CS, s: Ópusztaszer, t: 1}
+  - {n: Szegedi vár, c: var, sub: várrom, lat: 46.2540, lon: 20.1530, co: CS, s: Szeged, t: 2, f: [ruin]}
+
+  # --- Békés ----------------------------------------------------------------------
+  - {n: Gyulai vár, c: var, lat: 46.6460, lon: 21.2850, co: BE, s: Gyula, t: 1, f: [heritage], d: "Közép-Európa egyetlen épen maradt síkvidéki téglavára."}
+  - {n: Szarvasi Arborétum, c: kert, sub: arborétum, lat: 46.8670, lon: 20.5300, co: BE, s: Szarvas, t: 1}
+  - {n: Békéscsabai evangélikus nagytemplom, c: templom, lat: 46.6790, lon: 21.0960, co: BE, s: Békéscsaba, t: 3}
+
+  # --- Hajdú-Bihar ----------------------------------------------------------------
+  - {n: Kilenclyukú híd, c: hid, sub: kőhíd, lat: 47.5810, lon: 21.1500, co: HB, s: Hortobágy, t: 1, f: [heritage], d: "Az ország leghosszabb közúti kőhídja a Hortobágyon."}
+  - {n: Debreceni Református Nagytemplom, c: templom, lat: 47.5310, lon: 21.6250, co: HB, s: Debrecen, t: 1, f: [heritage]}
+  - {n: Hortobágyi-halastó, c: to, lat: 47.6000, lon: 21.0500, co: HB, s: Hortobágy, t: 2}
+
+  # --- Jász-Nagykun-Szolnok -------------------------------------------------------
+  - {n: Tiszakürti Arborétum, c: kert, sub: arborétum, lat: 46.8860, lon: 20.1290, co: JN, s: Tiszakürt, t: 1}
+  - {n: Tiszavirág híd, c: hid, lat: 47.1720, lon: 20.1960, co: JN, s: Szolnok, t: 2}
+  - {n: Tisza-tó, c: to, sub: víztározó, lat: 47.6300, lon: 20.7000, s: Poroszló, t: 1}
+
+  # --- Heves ----------------------------------------------------------------------
+  - {n: Egri vár, c: var, lat: 47.9040, lon: 20.3780, co: HE, s: Eger, t: 1, f: [heritage], d: "Az 1552-es török ostrom hősies védelméről ismert vár."}
+  - {n: Kékes, c: csucs, lat: 47.8724, lon: 20.0090, co: HE, s: Gyöngyös, t: 1, ele: 1014, f: [kektura], d: "Magyarország legmagasabb pontja a Mátrában."}
+  - {n: Fátyol-vízesés, c: vizeses, lat: 48.0880, lon: 20.4030, co: HE, s: Szilvásvárad, t: 1, d: "Mésztufa-lépcsőkön lezúduló vízesés a Szalajka-völgyben."}
+  - {n: Bélapátfalvi ciszterci apátsági templom, c: templom, sub: apátság, lat: 48.0560, lon: 20.3680, co: HE, s: Bélapátfalva, t: 1, f: [heritage]}
+  - {n: Egri minaret, c: egyeb, sub: minaret, lat: 47.9020, lon: 20.3760, co: HE, s: Eger, t: 2, f: [heritage]}
+  - {n: Siroki vár, c: var, sub: várrom, lat: 47.9330, lon: 20.2050, co: HE, s: Sirok, t: 2, f: [ruin]}
+  - {n: Galyatetői kilátó, c: kilato, lat: 47.9180, lon: 19.9250, co: HE, s: Parádsasvár, t: 2, ele: 964}
+  - {n: Bél-kő, c: szikla, lat: 48.0400, lon: 20.3850, co: HE, s: Bélapátfalva, t: 2, ele: 815}
+  - {n: Istállós-kő, c: csucs, lat: 48.0770, lon: 20.4210, co: HE, s: Szilvásvárad, t: 2, ele: 958, f: [kektura]}
+
+  # --- Nógrád ---------------------------------------------------------------------
+  - {n: Hollókői vár, c: var, lat: 47.9990, lon: 19.5920, co: "NO", s: Hollókő, t: 1, f: [heritage], d: "A világörökségi ófalu fölötti hegyen álló középkori vár."}
+  - {n: Ipolytarnóci Ősmaradványok, c: szikla, sub: ősmaradvány-lelőhely, lat: 48.2370, lon: 19.6420, co: "NO", s: Ipolytarnóc, t: 1, d: "Mintegy 17 millió éves lábnyomok és megkövesedett fák."}
+  - {n: Salgó vára, c: var, sub: várrom, lat: 48.1490, lon: 19.8530, co: "NO", s: Salgótarján, t: 1, f: [ruin]}
+  - {n: Drégely vára, c: var, sub: várrom, lat: 48.0570, lon: 19.0480, co: "NO", s: Drégelypalánk, t: 2, f: [ruin]}
+
+  # --- Borsod-Abaúj-Zemplén -------------------------------------------------------
+  - {n: Baradla-barlang, c: barlang, lat: 48.4740, lon: 20.4950, co: BZ, s: Aggtelek, t: 1, f: [showcave, heritage], d: "Az Aggteleki-karszt világörökségi cseppkőbarlangja, vezetéssel látogatható."}
+  - {n: Anna-barlang, c: barlang, lat: 48.1040, lon: 20.6260, co: BZ, s: Miskolc, t: 2, f: [showcave]}
+  - {n: Szent István-barlang, c: barlang, lat: 48.1018, lon: 20.6180, co: BZ, s: Miskolc, t: 2, f: [showcave]}
+  - {n: Füzéri vár, c: var, lat: 48.5390, lon: 21.4590, co: BZ, s: Füzér, t: 1, f: [heritage]}
+  - {n: Boldogkő vára, c: var, lat: 48.3460, lon: 21.2380, co: BZ, s: Boldogkőváralja, t: 1, f: [heritage]}
+  - {n: Diósgyőri vár, c: var, lat: 48.0960, lon: 20.6890, co: BZ, s: Miskolc, t: 1, f: [heritage]}
+  - {n: Sárospataki Rákóczi-vár, c: var, lat: 48.3170, lon: 21.5720, co: BZ, s: Sárospatak, t: 1, f: [heritage]}
+  - {n: Regéci vár, c: var, lat: 48.3930, lon: 21.3480, co: BZ, s: Regéc, t: 2}
+  - {n: Szinva-vízesés, c: vizeses, lat: 48.1050, lon: 20.6250, co: BZ, s: Miskolc, t: 1, d: "Az ország legmagasabb természetes vízesése Lillafüreden."}
+  - {n: Hámori-tó, c: to, lat: 48.0980, lon: 20.6230, co: BZ, s: Miskolc, t: 2}
+  - {n: Megyer-hegyi tengerszem, c: to, sub: bányató, lat: 48.3360, lon: 21.5370, co: BZ, s: Sárospatak, t: 1}
+  - {n: Garadna-forrás, c: forras, lat: 48.1150, lon: 20.5880, co: BZ, s: Miskolc, t: 3}
+  - {n: Jósva-forrás, c: forras, lat: 48.4830, lon: 20.5520, co: BZ, s: Jósvafő, t: 2}
+  - {n: Kopasz-hegy, c: kilatopont, lat: 48.1380, lon: 21.3780, co: BZ, s: Tokaj, t: 2}
+  - {n: Miskolctapolcai Barlangfürdő, c: egyeb, sub: barlangfürdő, lat: 48.0610, lon: 20.7460, co: BZ, s: Miskolc, t: 2}
+
+  # --- Szabolcs-Szatmár-Bereg -----------------------------------------------------
+  - {n: Tákosi református templom, c: templom, lat: 48.1560, lon: 22.4290, co: SZ, s: Tákos, t: 1, f: [heritage], d: "Festett kazettás mennyezetű, paticsfalú templom, a „mezítlábas Notre-Dame”."}
+  - {n: Csarodai református templom, c: templom, lat: 48.1630, lon: 22.4650, co: SZ, s: Csaroda, t: 1, f: [heritage]}
+  - {n: Nyírbátori református templom, c: templom, lat: 47.8330, lon: 22.1320, co: SZ, s: Nyírbátor, t: 2, f: [heritage]}
+  - {n: Kisvárdai vár, c: var, lat: 48.2200, lon: 22.0890, co: SZ, s: Kisvárda, t: 2}
+  - {n: Sóstó, c: to, lat: 47.9890, lon: 21.7330, co: SZ, s: Nyíregyháza, t: 2}
+  - {n: Túristvándi vízimalom, c: egyeb, sub: malom, lat: 47.9500, lon: 22.6500, co: SZ, s: Túristvándi, t: 2, f: [heritage]}
+  - {n: Szatmárcsekei temető, c: egyeb, sub: kopjafás temető, lat: 48.0850, lon: 22.6280, co: SZ, s: Szatmárcseke, t: 2}

@@ -1,0 +1,15 @@
+# Kézi javítások. Az azonosító a végső POI id-ja (Wikidata QID, OSM n/w/r…).
+#
+# overrides:      mezők felülírása (name, cat, sub, settlement, tier)
+# exclude:        ezeket a pontokat kihagyjuk
+# merge:          rekordkulcs-listák (forrás:ref), amelyeket egy pontba vonunk össze
+#
+# Példa:
+# overrides:
+#   Q1234567: {cat: kastely, tier: 1}
+# exclude: [n123456]
+# merge:
+#   - ["osm:w1234", "wikidata:Q42"]
+overrides: {}
+exclude: []
+merge: []

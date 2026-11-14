@@ -1,0 +1,385 @@
+{
+ "version": 1,
+ "generated": "2026-11-14T18:39:01Z",
+ "sample": true,
+ "boundaries": "geoBoundaries HUN ADM1 (CC0) + Natural Earth (közkincs, Budapest)",
+ "counts": {
+  "total": 132,
+  "by_tier": {
+   "1": 64,
+   "2": 66,
+   "3": 2
+  },
+  "by_cat": {
+   "barlang": 7,
+   "csucs": 9,
+   "egyeb": 10,
+   "forras": 2,
+   "hid": 6,
+   "kastely": 5,
+   "kert": 6,
+   "kilato": 7,
+   "kilatopont": 3,
+   "rom": 7,
+   "szikla": 4,
+   "templom": 21,
+   "to": 10,
+   "var": 30,
+   "vizeses": 2,
+   "volgy": 3
+  },
+  "by_county": {
+   "BA": {
+    "barlang": 1,
+    "csucs": 2,
+    "egyeb": 1,
+    "rom": 1,
+    "templom": 2,
+    "to": 1,
+    "var": 3
+   },
+   "BE": {
+    "kert": 1,
+    "templom": 1,
+    "var": 1
+   },
+   "BK": {
+    "egyeb": 3,
+    "templom": 1
+   },
+   "BU": {
+    "barlang": 2,
+    "csucs": 1,
+    "hid": 2,
+    "kert": 1,
+    "kilato": 1,
+    "kilatopont": 1,
+    "rom": 1,
+    "templom": 3,
+    "var": 1
+   },
+   "BZ": {
+    "barlang": 3,
+    "egyeb": 1,
+    "forras": 2,
+    "kilatopont": 1,
+    "to": 2,
+    "var": 5,
+    "vizeses": 1
+   },
+   "CS": {
+    "egyeb": 1,
+    "templom": 1,
+    "var": 1
+   },
+   "FE": {
+    "kastely": 1,
+    "kert": 1,
+    "rom": 1,
+    "to": 1,
+    "var": 2
+   },
+   "GS": {
+    "kastely": 1,
+    "kilato": 2,
+    "templom": 2,
+    "to": 1,
+    "volgy": 1
+   },
+   "HB": {
+    "hid": 1,
+    "templom": 1,
+    "to": 1
+   },
+   "HE": {
+    "csucs": 2,
+    "egyeb": 1,
+    "kilato": 1,
+    "szikla": 1,
+    "templom": 1,
+    "var": 2,
+    "vizeses": 1
+   },
+   "JN": {
+    "hid": 1,
+    "kert": 1,
+    "to": 1
+   },
+   "KE": {
+    "hid": 1,
+    "templom": 2,
+    "to": 1,
+    "var": 1
+   },
+   "NO": {
+    "szikla": 1,
+    "var": 3
+   },
+   "PE": {
+    "csucs": 2,
+    "egyeb": 1,
+    "kastely": 2,
+    "kert": 1,
+    "kilatopont": 1,
+    "rom": 1,
+    "templom": 1,
+    "var": 1,
+    "volgy": 2
+   },
+   "SO": {
+    "hid": 1,
+    "kert": 1,
+    "kilato": 1,
+    "rom": 1
+   },
+   "SZ": {
+    "egyeb": 2,
+    "templom": 3,
+    "to": 1,
+    "var": 1
+   },
+   "TO": {
+    "var": 3
+   },
+   "VA": {
+    "csucs": 1,
+    "kilato": 1,
+    "rom": 1,
+    "templom": 1,
+    "var": 2
+   },
+   "VE": {
+    "barlang": 1,
+    "csucs": 1,
+    "kilato": 1,
+    "szikla": 2,
+    "templom": 1,
+    "var": 3
+   },
+   "ZA": {
+    "kastely": 1,
+    "rom": 1,
+    "templom": 1,
+    "to": 1,
+    "var": 1
+   }
+  }
+ },
+ "groups": {
+  "epitett": {
+   "label": "Épített örökség",
+   "order": 1
+  },
+  "termeszeti": {
+   "label": "Természeti érték",
+   "order": 2
+  },
+  "kilatas": {
+   "label": "Kilátás",
+   "order": 3
+  }
+ },
+ "categories": {
+  "var": {
+   "label": "Vár, várrom",
+   "group": "epitett",
+   "icon": "castle",
+   "color": "#9a3412"
+  },
+  "kastely": {
+   "label": "Kastély, kúria",
+   "group": "epitett",
+   "icon": "town-hall",
+   "color": "#b45309"
+  },
+  "templom": {
+   "label": "Egyházi épület",
+   "group": "epitett",
+   "icon": "place-of-worship",
+   "color": "#7c3aed"
+  },
+  "hid": {
+   "label": "Híd, viadukt",
+   "group": "epitett",
+   "icon": "bridge",
+   "color": "#475569"
+  },
+  "rom": {
+   "label": "Rom, régészeti hely",
+   "group": "epitett",
+   "icon": "historic",
+   "color": "#78716c"
+  },
+  "egyeb": {
+   "label": "Egyéb látnivaló",
+   "group": "epitett",
+   "icon": "star",
+   "color": "#be185d"
+  },
+  "csucs": {
+   "label": "Hegycsúcs",
+   "group": "termeszeti",
+   "icon": "mountain",
+   "color": "#166534"
+  },
+  "barlang": {
+   "label": "Barlang",
+   "group": "termeszeti",
+   "icon": "cave",
+   "color": "#3f3f46"
+  },
+  "szikla": {
+   "label": "Szikla, földtani érték",
+   "group": "termeszeti",
+   "icon": "volcano",
+   "color": "#57534e"
+  },
+  "vizeses": {
+   "label": "Vízesés",
+   "group": "termeszeti",
+   "icon": "waterfall",
+   "color": "#0369a1"
+  },
+  "forras": {
+   "label": "Forrás",
+   "group": "termeszeti",
+   "icon": "spring",
+   "color": "#0891b2"
+  },
+  "to": {
+   "label": "Tó",
+   "group": "termeszeti",
+   "icon": "water",
+   "color": "#1d4ed8"
+  },
+  "volgy": {
+   "label": "Völgy, szurdok",
+   "group": "termeszeti",
+   "icon": "valley",
+   "color": "#4d7c0f"
+  },
+  "kert": {
+   "label": "Arborétum, kert",
+   "group": "termeszeti",
+   "icon": "garden",
+   "color": "#15803d"
+  },
+  "kilato": {
+   "label": "Kilátó",
+   "group": "kilatas",
+   "icon": "observation-tower",
+   "color": "#c2410c"
+  },
+  "kilatopont": {
+   "label": "Kilátópont",
+   "group": "kilatas",
+   "icon": "viewpoint",
+   "color": "#ea580c"
+  }
+ },
+ "counties": {
+  "BU": {
+   "name": "Budapest",
+   "short": "Budapest"
+  },
+  "BA": {
+   "name": "Baranya vármegye",
+   "short": "Baranya"
+  },
+  "BE": {
+   "name": "Békés vármegye",
+   "short": "Békés"
+  },
+  "BK": {
+   "name": "Bács-Kiskun vármegye",
+   "short": "Bács-Kiskun"
+  },
+  "BZ": {
+   "name": "Borsod-Abaúj-Zemplén vármegye",
+   "short": "Borsod-Abaúj-Zemplén"
+  },
+  "CS": {
+   "name": "Csongrád-Csanád vármegye",
+   "short": "Csongrád-Csanád"
+  },
+  "FE": {
+   "name": "Fejér vármegye",
+   "short": "Fejér"
+  },
+  "GS": {
+   "name": "Győr-Moson-Sopron vármegye",
+   "short": "Győr-Moson-Sopron"
+  },
+  "HB": {
+   "name": "Hajdú-Bihar vármegye",
+   "short": "Hajdú-Bihar"
+  },
+  "HE": {
+   "name": "Heves vármegye",
+   "short": "Heves"
+  },
+  "JN": {
+   "name": "Jász-Nagykun-Szolnok vármegye",
+   "short": "Jász-Nagykun-Szolnok"
+  },
+  "KE": {
+   "name": "Komárom-Esztergom vármegye",
+   "short": "Komárom-Esztergom"
+  },
+  "NO": {
+   "name": "Nógrád vármegye",
+   "short": "Nógrád"
+  },
+  "PE": {
+   "name": "Pest vármegye",
+   "short": "Pest"
+  },
+  "SO": {
+   "name": "Somogy vármegye",
+   "short": "Somogy"
+  },
+  "SZ": {
+   "name": "Szabolcs-Szatmár-Bereg vármegye",
+   "short": "Szabolcs-Szatmár-Bereg"
+  },
+  "TO": {
+   "name": "Tolna vármegye",
+   "short": "Tolna"
+  },
+  "VA": {
+   "name": "Vas vármegye",
+   "short": "Vas"
+  },
+  "VE": {
+   "name": "Veszprém vármegye",
+   "short": "Veszprém"
+  },
+  "ZA": {
+   "name": "Zala vármegye",
+   "short": "Zala"
+  }
+ },
+ "flags": {
+  "heritage": 1,
+  "image": 2,
+  "kektura": 4,
+  "showcave": 8,
+  "ruin": 16,
+  "approx": 32,
+  "sample": 64
+ },
+ "sources": {
+  "osm": {
+   "label": "OpenStreetMap",
+   "url": "https://www.openstreetmap.org/{ref}",
+   "license": "ODbL 1.0",
+   "kind": "open"
+  },
+  "wikidata": {
+   "label": "Wikidata",
+   "url": "https://www.wikidata.org/wiki/{ref}",
+   "license": "CC0 1.0",
+   "kind": "open"
+  }
+ }
+}

@@ -1,0 +1,167 @@
+# Kategóriarendszer + besorolási szabályok.
+#
+# A szabályok SORRENDBEN futnak, az első egyezés dönt. Egy szabály mezői:
+#   when:      címkefeltételek, mind teljesüljön. Érték: pontos szöveg, lista
+#              (bármelyik), vagy "*" (a címke létezik).
+#   not:       címkefeltételek, egyik sem teljesülhet.
+#   name:      regex (kis/nagybetű-független) a névre, illeszkednie kell.
+#   name_not:  regex, nem illeszkedhet.
+#   require:   további követelmények:
+#                notable        – van wikidata, védettség vagy wikipedia címke
+#                area_km2: X    – a terület legalább X km² (csak területeknél)
+#   sub:       alkategória (szabad szöveg), vagy
+#   sub_from:  {címke: {érték: alkategória}} – az első talált érték dönt.
+#
+# Név nélküli objektumot sosem veszünk fel.
+
+groups:
+  epitett: {label: Épített örökség, order: 1}
+  termeszeti: {label: Természeti érték, order: 2}
+  kilatas: {label: Kilátás, order: 3}
+
+# base: a pontszám kategória-alappontja (lásd score.py)
+# tier1_cap: legfeljebb ennyi „kiemelt” lehet a kategóriában országosan
+categories:
+  var:        {label: "Vár, várrom",            group: epitett,    icon: castle,              color: "#9a3412", base: 2.0,  tier1_cap: 120}
+  kastely:    {label: "Kastély, kúria",         group: epitett,    icon: town-hall,           color: "#b45309", base: 1.5,  tier1_cap: 90}
+  templom:    {label: "Egyházi épület",         group: epitett,    icon: place-of-worship,    color: "#7c3aed", base: -1.0, tier1_cap: 120}
+  hid:        {label: "Híd, viadukt",           group: epitett,    icon: bridge,              color: "#475569", base: 0.5,  tier1_cap: 40}
+  rom:        {label: "Rom, régészeti hely",    group: epitett,    icon: historic,            color: "#78716c", base: 0.5,  tier1_cap: 50}
+  egyeb:      {label: "Egyéb látnivaló",        group: epitett,    icon: star,                color: "#be185d", base: 0.0,  tier1_cap: 60}
+  csucs:      {label: "Hegycsúcs",              group: termeszeti, icon: mountain,            color: "#166534", base: 0.5,  tier1_cap: 70}
+  barlang:    {label: "Barlang",                group: termeszeti, icon: cave,                color: "#3f3f46", base: 0.0,  tier1_cap: 40}
+  szikla:     {label: "Szikla, földtani érték", group: termeszeti, icon: volcano,             color: "#57534e", base: 1.0,  tier1_cap: 40}
+  vizeses:    {label: "Vízesés",                group: termeszeti, icon: waterfall,           color: "#0369a1", base: 2.0,  tier1_cap: 30}
+  forras:     {label: "Forrás",                 group: termeszeti, icon: spring,              color: "#0891b2", base: 0.0,  tier1_cap: 30}
+  to:         {label: "Tó",                     group: termeszeti, icon: water,               color: "#1d4ed8", base: 1.0,  tier1_cap: 40}
+  volgy:      {label: "Völgy, szurdok",         group: termeszeti, icon: valley,              color: "#4d7c0f", base: 1.0,  tier1_cap: 40}
+  kert:       {label: "Arborétum, kert",        group: termeszeti, icon: garden,              color: "#15803d", base: 1.0,  tier1_cap: 30}
+  kilato:     {label: "Kilátó",                 group: kilatas,    icon: observation-tower,   color: "#c2410c", base: 1.5,  tier1_cap: 80}
+  kilatopont: {label: "Kilátópont",             group: kilatas,    icon: viewpoint,           color: "#ea580c", base: 0.0,  tier1_cap: 40}
+
+# Kategóriák, amelyek összevonáskor kompatibilisek egymással (szimmetrikus).
+# "strong_name": csak erős névegyezésnél (>= 0.85).
+compatible:
+  - [var, rom]
+  - [templom, rom]
+  - [kilato, kilatopont]
+  - [var, kastely, strong_name]
+  - [szikla, csucs, strong_name]
+  - [volgy, szikla, strong_name]
+  - [egyeb, "*", strong_name]
+
+osm_rules:
+  # --- Kastély vs. vár --------------------------------------------------
+  - {cat: kastely, when: {historic: castle, castle_type: [stately, manor, palace, schloss, chateau]}, sub: kastély}
+  - {cat: kastely, when: {historic: [manor, palace]}, sub: kastély}
+  - {cat: kastely, when: {historic: castle}, name: "kastély|kúria|palota|kastélya"}
+  - {cat: rom,     when: {historic: castle}, name: "földvár|vársánc|sánc|várhely", sub: földvár}
+  - {cat: var,     when: {historic: castle, ruins: "yes"}, sub: várrom}
+  - {cat: var,     when: {historic: castle}, sub_from: {castle_type: {fortress: erőd, citadel: fellegvár, castrum: castrum, defensive: vár}}}
+  - {cat: var,     when: {historic: [fort, fortification, citadel]}, sub: erőd}
+  - {cat: kastely, when: {building: [manor, palace]}, name: "kastély|kúria|palota"}
+  # --- Romok, régészeti helyek -------------------------------------------
+  - {cat: rom,     when: {historic: archaeological_site}, name: "földvár|vársánc|sánc|várhely", sub: földvár}
+  - {cat: rom,     when: {historic: archaeological_site, site_type: fortification}, sub: földvár}
+  - {cat: var,     when: {historic: ruins, ruins: castle}, sub: várrom}
+  - {cat: var,     when: {historic: ruins}, name: "\\bvár|várrom|vára\\b", name_not: "földvár|vársánc", sub: várrom}
+  - {cat: rom,     when: {historic: ruins}, name: "templom|kápolna|kolostor|apátság|monostor", sub: templomrom}
+  - {cat: rom,     when: {historic: ruins, ruins: [church, chapel, monastery]}, sub: templomrom}
+  - {cat: rom,     when: {historic: archaeological_site}, sub_from: {site_type: {roman_villa: római villa, tumulus: halomsír, settlement: település}}}
+  - {cat: rom,     when: {historic: ruins}}
+  # --- Egyházi épületek ---------------------------------------------------
+  - {cat: templom, when: {historic: [monastery, abbey]}, sub: kolostor}
+  - {cat: templom, when: {amenity: monastery}, sub: kolostor}
+  - {cat: templom, when: {amenity: place_of_worship, religion: jewish}, sub: zsinagóga}
+  - {cat: templom, when: {building: synagogue}, sub: zsinagóga}
+  - {cat: templom, when: {amenity: place_of_worship, religion: muslim}, sub: dzsámi}
+  - {cat: templom, when: {building: mosque}, sub: dzsámi}
+  - {cat: templom, when: {amenity: place_of_worship}, not: {place_of_worship: [cross, wayside_shrine, wayside_cross]},
+     sub_from: {building: {cathedral: székesegyház, basilica: bazilika, chapel: kápolna, church: templom}, place_of_worship: {chapel: kápolna, cathedral: székesegyház}}}
+  - {cat: templom, when: {building: [church, cathedral, chapel, basilica]}, sub_from: {building: {cathedral: székesegyház, basilica: bazilika, chapel: kápolna, church: templom}}}
+  # --- Hidak --------------------------------------------------------------
+  - {cat: hid, when: {historic: bridge}, sub: történelmi híd}
+  - {cat: hid, when: {historic: aqueduct}, sub: vízvezeték-híd}
+  - {cat: hid, when: {man_made: bridge}, require: [notable], sub_from: {bridge: {viaduct: viadukt, aqueduct: vízvezeték-híd}, bridge:structure: {suspension: függőhíd, arch: ívhíd}}}
+  - {cat: hid, when: {bridge: [viaduct, aqueduct], "bridge:name": "*"}, require: [notable], sub: viadukt}
+  # --- Kilátók ------------------------------------------------------------
+  - {cat: kilato, when: {man_made: tower, "tower:type": observation}}
+  - {cat: kilato, when: {tourism: viewpoint, man_made: tower}}
+  - {cat: kilato, when: {tourism: viewpoint}, name: "kilátó(?!pont)|kilátótorony"}
+  - {cat: kilatopont, when: {tourism: viewpoint}}
+  # --- Természeti értékek ---------------------------------------------------
+  - {cat: barlang, when: {natural: cave_entrance}}
+  - {cat: szikla, when: {natural: [rock, stone, cliff, bare_rock, arete, outcrop]}, name: "bazalt|orgona", sub: bazaltorgona}
+  - {cat: szikla, when: {geological: "*"}, sub_from: {geological: {outcrop: kibúvás, palaeontological_site: ősmaradvány-lelőhely, volcanic_lava_field: lávamező}}}
+  - {cat: szikla, when: {natural: [rock, stone, cliff, bare_rock, arete]}, sub_from: {natural: {cliff: sziklafal, rock: szikla, stone: kő, arete: gerinc, bare_rock: sziklakibúvás}}}
+  - {cat: csucs, when: {natural: volcano}, sub: vulkáni kúp}
+  - {cat: csucs, when: {natural: [peak, hill]}}
+  - {cat: vizeses, when: {waterway: waterfall}}
+  - {cat: vizeses, when: {natural: waterfall}}
+  - {cat: forras, when: {natural: spring}, not: {"spring:type": [drain, seepage]}}
+  - {cat: volgy, when: {natural: [valley, gorge, canyon]}, sub_from: {natural: {gorge: szurdok, canyon: szurdok}}}
+  - {cat: volgy, when: {natural: valley}, name: "szurdok|szakadék", sub: szurdok}
+  - {cat: to, when: {natural: water, water: [lake, reservoir, oxbow, lagoon, crater_lake]}, require: [notable], sub_from: {water: {oxbow: holtág, reservoir: víztározó, crater_lake: kráter-tó}}}
+  - {cat: to, when: {natural: water, water: [lake, oxbow, crater_lake]}, require: [{area_km2: 0.5}]}
+  - {cat: kert, when: {leisure: garden, "garden:type": botanical}, sub: botanikus kert}
+  - {cat: kert, when: {leisure: [garden, park]}, name: "arborétum|füvészkert|botanikus", sub: arborétum}
+  - {cat: kert, when: {tourism: attraction}, name: "arborétum|füvészkert|botanikus kert", sub: arborétum}
+  # --- Egyéb ----------------------------------------------------------------
+  - {cat: egyeb, when: {tourism: attraction}, require: [notable]}
+  - {cat: egyeb, when: {historic: [monument, memorial]}, not: {memorial: [plaque, stolperstein, blue_plaque]}, require: [notable], sub: emlékmű}
+  - {cat: egyeb, when: {man_made: [watermill, windmill]}, require: [notable], sub: malom}
+  - {cat: egyeb, when: {historic: [mine, mine_shaft]}, require: [notable], sub: bánya}
+
+# Wikidata „példánya” (P31) osztályok -> kategória. Sorrendben: az első egyező
+# gyökérosztály dönt. Az alosztályfákat (P279*) a pipeline tölti le és cache-eli;
+# az `exclude` alá kerülő alosztályok kimaradnak.
+# A `verify-config` parancs ellenőrzi, hogy a QID-k angol címkéje egyezik-e a
+# `label` mezővel (elírt QID ellen).
+wikidata_classes:
+  - {qid: Q879050,  label: manor house,          cat: kastely}
+  - {qid: Q751876,  label: château,              cat: kastely}
+  - {qid: Q16560,   label: palace,               cat: kastely}
+  - {qid: Q23413,   label: castle,               cat: var}
+  - {qid: Q1785071, label: fort,                 cat: var}
+  - {qid: Q57821,   label: fortification,        cat: var}
+  - {qid: Q16970,   label: church building,      cat: templom}
+  - {qid: Q44613,   label: monastery,            cat: templom}
+  - {qid: Q34627,   label: synagogue,            cat: templom}
+  - {qid: Q108325,  label: chapel,               cat: templom}
+  - {qid: Q12280,   label: bridge,               cat: hid}
+  - {qid: Q109607,  label: ruins,                cat: rom}
+  - {qid: Q839954,  label: archaeological site,  cat: rom}
+  - {qid: Q1440300, label: observation tower,    cat: kilato}
+  - {qid: Q35509,   label: cave,                 cat: barlang}
+  - {qid: Q34038,   label: waterfall,            cat: vizeses}
+  - {qid: Q124714,  label: spring,               cat: forras}
+  - {qid: Q23397,   label: lake,                 cat: to}
+  - {qid: Q131681,  label: reservoir,            cat: to}
+  - {qid: Q150784,  label: canyon,               cat: volgy}
+  - {qid: Q39816,   label: valley,               cat: volgy}
+  - {qid: Q167346,  label: botanical garden,     cat: kert}
+  - {qid: Q181623,  label: arboretum,            cat: kert}
+  - {qid: Q8072,    label: volcano,              cat: csucs}
+  - {qid: Q8502,    label: mountain,             cat: csucs}
+  - {qid: Q54050,   label: hill,                 cat: csucs}
+  - {qid: Q207326,  label: summit,               cat: csucs}
+wikidata_exclude:
+  # Q-azonosítók, amelyek alosztályként bekerülnének, de nem kellenek
+  # (pl. lakótorony-jellegű épületek, víztorony stb.). A pipeline tölti fel a
+  # verify-config/discovery riport alapján.
+  []
+
+# Ezek a szavak a nevekben nem hordoznak megkülönböztető információt
+# (összevonáskor levágjuk őket). A „kő” szót SOHA ne vedd fel ide.
+generic_words: [
+  vár, vára, várrom, várroma, várromok, romjai, rom, romok, erőd, erődje, fellegvár,
+  kastély, kastélya, kastélypark, kúria, kúriája, palota, palotája,
+  templom, temploma, plébániatemplom, székesegyház, főszékesegyház, bazilika, kápolna, kápolnája,
+  apátság, apátsági, kolostor, monostor, zsinagóga, imaház,
+  "r", "k", "rk", római, katolikus, református, evangélikus, görögkatolikus, ortodox, unitárius, baptista,
+  barlang, barlangja, kilátó, kilátója, kilátótorony, kilátópont,
+  forrás, forrása, kút, kútja, tó, tava, völgy, völgye, szurdok, szurdoka, szakadék,
+  hegy, hegye, tető, csúcs, csúcsa, hid, híd, hídja, viadukt, völgyhíd, vízesés, vízesése,
+  szikla, sziklák, arborétum, füvészkert, botanikus, kert, emlékmű,
+  "a", az, "és", "i", szent, szt, nagyboldogasszony
+]

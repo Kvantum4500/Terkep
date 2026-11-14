@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "terkep-pipeline"
+version = "0.1.0"
+description = "Magyarország látnivaló-adatbázis: gyűjtés, összevonás, pontozás"
+requires-python = ">=3.11"
+dependencies = [
+  "requests>=2.31",
+  "shapely>=2.0",
+  "rapidfuzz>=3.0",
+  "pyyaml>=6.0",
+  "osmium>=4.0",
+  "jsonschema>=4.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.5"]
+
+[project.scripts]
+terkep = "terkep_pipeline.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["terkep_pipeline*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["data: minőségi tesztek a legyártott data/ könyvtáron"]
+addopts = "-m 'not data'"
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["E501"]

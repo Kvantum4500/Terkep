@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+pipeline/cache/
+pipeline/build/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Node
+node_modules/
+web/dist/
+web/dev-dist/
+web/public/data/
+web/test-results/
+web/playwright-report/
+web/blob-report/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

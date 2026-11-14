@@ -1,0 +1,93 @@
+# Magyarország látnivalói – szűrhető térkép
+
+Várak, kastélyok, templomok, hidak, romok, hegycsúcsok, barlangok, sziklák
+(pl. bazaltorgonák), vízesések, források, tavak, völgyek, arborétumok és kilátók
+**vármegyénként**, szabadon kombinálható szűrőkkel: „csak várak”, „csak Pest
+vármegye”, „Pest vármegye templomai”, „látogatható barlangok Borsodban”…
+
+Ez egy készülő magyar túra-app **első lépése**. A későbbi lépések: útvonaltervező
+(ösvények, földutak, kerékpárutak előnyben), saját teljesítmény mentése, GPS és
+egészségadatok (Samsung Health / Health Connect), AI-asszisztens.
+
+- **Telepíthető app (PWA):** Androidon (Samsung Internet / Chrome: „Hozzáadás a
+  kezdőképernyőhöz”) és Windowson (Edge / Chrome: „Alkalmazás telepítése”) is
+  ikonnal indul, és **offline is működik** (az adatok a készüléken vannak).
+- **Megosztható szűrők:** a szűrők a link végén vannak, pl.
+  `…/Terkep/#m=PE&k=templom`.
+
+> **Jelenlegi állapot:** az app egy kézzel összeállított **mintaadattal** fut
+> (132 ismert látnivaló mind a 20 vármegyéből, közelítő helyekkel). A teljes
+> adatbázist az **Adatfrissítés** workflow tölti le (lásd lent).
+
+## Teendők a repó gazdájának
+
+1. **Repó nyilvánossá tétele:** Settings → General → Danger Zone → Change visibility.
+2. **GitHub Pages:** Settings → Pages → Build and deployment → Source: **GitHub Actions**.
+   Utána minden push az alapértelmezett ágra kiteszi az appot ide:
+   `https://kvantum4500.github.io/Terkep/`
+3. **Adatfrissítés engedélyezése:** Settings → Actions → General → „Allow GitHub
+   Actions to create and approve pull requests”.
+4. **Valós adat:** Actions → *Adatfrissítés* → Run workflow. Kb. 1–2 óra; a végén PR
+   nyílik a friss `data/` könyvtárral és egy riporttal (vármegyénkénti top 15,
+   bizonytalan párosítások). A túraoldalak felderítési riportja az artifactok között van.
+
+## Felépítés
+
+```
+data/       a pipeline kimenete (ODbL) – ezt olvassa az app
+  sample/   kézi mintaadat (fejlesztés, tesztek)
+pipeline/   Python: gyűjtés, összevonás, pontozás (terkep parancs)
+web/        React + TypeScript + MapLibre GL + PWA
+```
+
+### Adatpipeline
+
+| Lépés | Mit csinál |
+|---|---|
+| `terkep fetch osm` | Geofabrik Magyarország-kivonat → látnivalók + vármegye- és településhatárok |
+| `terkep fetch wikidata` | osztályfák, magyarországi elemek, magyar név/leírás, kép, védettség |
+| `terkep fetch huwiki` | magyar Wikipédia-listák (melyik helyet tartják számon) |
+| `terkep fetch commons` | képek szerzője és licence |
+| `terkep discover all` | túraoldalak felderítése: robots.txt, ÁSZF, sitemap, koordináták (csak riport) |
+| `terkep fetch site all` | az engedélyezett túraoldalak (csak tények + link) |
+| `terkep build` | összevonás → vármegye → pontozás → `data/` |
+| `terkep golden` | aranylista: a híres helyek „kiemelt” szinten, jó vármegyében vannak-e |
+
+**Összevonás:** ugyanannak a helynek az OSM-, Wikidata- és oldalrekordjait
+azonosító (Wikidata QID), távolság és névhasonlóság alapján vonja össze, kategóriánként
+eltérő sugárral (templom 150 m, vár 600 m, tó 1,5 km…). Két különböző templom egy
+faluban nem olvad össze; a csúcs és a rajta álló kilátó külön marad.
+
+**Fontosság:** pontszám (Wikipédia-cikk, nyelvi változatok száma, hány válogatott
+forrás említi, védettség, kép, kategória) → szintek: *kiemelt* (~1,5%), *érdekes*
+(~12%), *helyi*. Kategóriánkénti felső korlát, hogy a falusi templomok ne árasszák el
+a térképet, és vármegyénként legalább 8 „érdekes” pont.
+
+**Túraoldalak:** csak tényeket veszünk át (név, hely, kategória) és visszalinkelünk.
+Alapból *megerősítő* módban futnak: meglévő ponthoz adnak forrást és fontosságot,
+újat nem hoznak létre (EU-s adatbázisjog). Részletek: [DATA_LICENSE.md](DATA_LICENSE.md).
+
+## Fejlesztés
+
+```bash
+# pipeline
+cd pipeline
+python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
+.venv/bin/pytest                      # egységtesztek
+.venv/bin/terkep build --sample       # mintaadat -> data/sample/
+.venv/bin/pytest -m data              # adatminőségi tesztek
+
+# web
+cd web
+npm install
+npm run dev                           # http://localhost:5173
+npm test                              # egységtesztek (vitest)
+BASE_PATH=/Terkep/ npm run build && npm run e2e   # Playwright, mobil + asztali nézet
+```
+
+A web-app a `data/` könyvtárat használja, ha van benne `pois.ndjson`, különben a
+mintaadatot (`TERKEP_DATA` környezeti változóval felülírható).
+
+## Licenc
+
+Kód: MIT ([LICENSE](LICENSE)). Adat: ODbL 1.0, forrásmegjelöléssel ([DATA_LICENSE.md](DATA_LICENSE.md)).

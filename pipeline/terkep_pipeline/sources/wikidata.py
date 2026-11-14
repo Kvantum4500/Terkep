@@ -1,0 +1,214 @@
+"""Wikidata (CC0): osztályfák, felderítés és dúsítás SPARQL-lel.
+
+1. Alosztályfák: minden gyökérosztály (categories.yaml) P279* fája, egyszer
+   letöltve és gyorsítótárazva -> osztály -> gyökér leképezés.
+2. Felderítés: magyarországi (P17 = Q28), koordinátás elemek a fák
+   osztályaiból, `VALUES` blokkokban (path-lekérdezés helyett – ez elkerüli a
+   legtöbb időtúllépést).
+3. Dúsítás: QID-kötegek (felderítés + OSM wikidata=* címkék): magyar név és
+   leírás, kép, sitelink-szám, magyar Wikipédia-cikk, védettség, magasság.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+from collections.abc import Iterable
+from urllib.parse import unquote
+
+from .. import BUILD_DIR, config
+from ..categorize import categorize_wikidata
+from ..http import PoliteClient
+from ..models import FLAG_HERITAGE, SourceRecord
+
+log = logging.getLogger(__name__)
+
+CLASS_MAP_PATH = BUILD_DIR / "wikidata_classes.json"
+BATCH_CLASSES = 150
+BATCH_ITEMS = 250
+ENTITY = "http://www.wikidata.org/entity/"
+
+
+def _sparql(client: PoliteClient, query: str) -> list[dict]:
+    url = config.source_cfg("wikidata")["sparql_url"]
+    resp = client.post(
+        url,
+        data={"query": query, "format": "json"},
+        headers={"Accept": "application/sparql-results+json"},
+        timeout=300,
+    )
+    if resp.status >= 400:
+        raise RuntimeError(f"SPARQL hiba {resp.status}: {resp.text[:300]}")
+    return resp.json()["results"]["bindings"]
+
+
+def _qid(uri: str) -> str:
+    return uri.removeprefix(ENTITY)
+
+
+def _chunks(items: list, n: int) -> Iterable[list]:
+    for i in range(0, len(items), n):
+        yield items[i : i + n]
+
+
+def class_map(client: PoliteClient, refresh: bool = False) -> dict[str, str]:
+    """osztály QID -> gyökér QID (a categories.yaml sorrendjében az első nyer)."""
+    if CLASS_MAP_PATH.exists() and not refresh:
+        return json.loads(CLASS_MAP_PATH.read_text(encoding="utf-8"))
+    roots = config.categories()["wikidata_classes"]
+    exclude = set(config.categories().get("wikidata_exclude") or [])
+    mapping: dict[str, str] = {}
+    for root in roots:
+        rows = _sparql(client, f"SELECT ?s WHERE {{ ?s wdt:P279* wd:{root['qid']} . }}")
+        subs = {_qid(r["s"]["value"]) for r in rows}
+        log.info("Wikidata osztályfa %s (%s): %d alosztály", root["qid"], root["label"], len(subs))
+        for s in subs:
+            if s not in exclude:
+                mapping.setdefault(s, root["qid"])
+    CLASS_MAP_PATH.parent.mkdir(parents=True, exist_ok=True)
+    CLASS_MAP_PATH.write_text(json.dumps(mapping, indent=0, sort_keys=True), encoding="utf-8")
+    return mapping
+
+
+def discover(client: PoliteClient, classes: Iterable[str]) -> set[str]:
+    """Magyarországi, koordinátás, meg nem szűnt elemek a megadott osztályokból."""
+    found: set[str] = set()
+    for chunk in _chunks(sorted(classes), BATCH_CLASSES):
+        values = " ".join(f"wd:{c}" for c in chunk)
+        q = f"""
+        SELECT DISTINCT ?item WHERE {{
+          VALUES ?class {{ {values} }}
+          ?item wdt:P31 ?class ; wdt:P17 wd:Q28 ; wdt:P625 ?coord .
+          FILTER NOT EXISTS {{ ?item wdt:P576 ?end . }}
+        }}"""
+        rows = _sparql(client, q)
+        found.update(_qid(r["item"]["value"]) for r in rows)
+    log.info("Wikidata felderítés: %d elem", len(found))
+    return found
+
+
+def _parse_point(wkt: str) -> tuple[float, float] | None:
+    # "Point(19.04 47.49)"
+    if not wkt.startswith("Point("):
+        return None
+    lon, lat = wkt[6:-1].split()
+    return float(lat), float(lon)
+
+
+def _commons_file(url: str) -> str:
+    # http://commons.wikimedia.org/wiki/Special:FilePath/Foo%20bar.jpg
+    return unquote(url.rsplit("/", 1)[-1]).replace("_", " ")
+
+
+def enrich_query(qids: list[str]) -> str:
+    values = " ".join(f"wd:{q}" for q in qids)
+    return f"""
+    SELECT ?item (SAMPLE(?coord) AS ?c) (SAMPLE(?label) AS ?l) (SAMPLE(?desc) AS ?d) (SAMPLE(?img) AS ?i)
+           (SAMPLE(?sl) AS ?s) (SAMPLE(?article) AS ?a) (SAMPLE(?herit) AS ?h) (SAMPLE(?ele) AS ?e)
+           (SAMPLE(?admLabel) AS ?adm)
+           (GROUP_CONCAT(DISTINCT STRAFTER(STR(?p31), "{ENTITY}"); separator="|") AS ?classes)
+    WHERE {{
+      VALUES ?item {{ {values} }}
+      OPTIONAL {{ ?item wdt:P625 ?coord . }}
+      OPTIONAL {{ ?item rdfs:label ?label . FILTER(LANG(?label) = "hu") }}
+      OPTIONAL {{ ?item schema:description ?desc . FILTER(LANG(?desc) = "hu") }}
+      OPTIONAL {{ ?item wdt:P18 ?img . }}
+      OPTIONAL {{ ?item wikibase:sitelinks ?sl . }}
+      OPTIONAL {{ ?article schema:about ?item ; schema:isPartOf <https://hu.wikipedia.org/> . }}
+      OPTIONAL {{ ?item wdt:P1435 ?herit . }}
+      OPTIONAL {{ ?item wdt:P2044 ?ele . }}
+      OPTIONAL {{ ?item wdt:P131 ?admin . ?admin rdfs:label ?admLabel . FILTER(LANG(?admLabel) = "hu") }}
+      OPTIONAL {{ ?item wdt:P31 ?p31 . }}
+    }} GROUP BY ?item"""
+
+
+def rows_to_records(rows: list[dict], class_to_root: dict[str, str]) -> list[SourceRecord]:
+    out = []
+    for r in rows:
+        qid = _qid(r["item"]["value"])
+        name = r.get("l", {}).get("value")
+        if not name:
+            continue
+        coords = _parse_point(r["c"]["value"]) if "c" in r else None
+        classes = [c for c in r.get("classes", {}).get("value", "").split("|") if c]
+        cat = categorize_wikidata(classes, class_to_root, name)
+        article = r.get("a", {}).get("value")
+        huwiki = unquote(article.rsplit("/wiki/", 1)[-1]).replace("_", " ") if article else None
+        ele = None
+        if "e" in r:
+            try:
+                ele = float(r["e"]["value"])
+            except ValueError:
+                ele = None
+        heritage = "h" in r
+        out.append(
+            SourceRecord(
+                source="wikidata",
+                ref=qid,
+                name=name,
+                lat=coords[0] if coords else None,
+                lon=coords[1] if coords else None,
+                cat=cat,
+                settlement=r.get("adm", {}).get("value"),
+                wikidata=qid,
+                huwiki=huwiki,
+                desc=r.get("d", {}).get("value"),
+                ele=ele,
+                image=_commons_file(r["i"]["value"]) if "i" in r else None,
+                sitelinks=int(r["s"]["value"]) if "s" in r else 0,
+                flags=FLAG_HERITAGE if heritage else 0,
+                coord_quality="exact" if coords else "none",
+                extra={"heritage": True} if heritage else {},
+            )
+        )
+    return out
+
+
+def enrich(client: PoliteClient, qids: Iterable[str], class_to_root: dict[str, str]) -> list[SourceRecord]:
+    qlist = sorted(set(qids), key=lambda q: int(q[1:]))
+    out: list[SourceRecord] = []
+    for i, chunk in enumerate(_chunks(qlist, BATCH_ITEMS)):
+        rows = _fetch_split(client, chunk)
+        out.extend(rows_to_records(rows, class_to_root))
+        if i % 20 == 0:
+            log.info("Wikidata dúsítás: %d / %d", min((i + 1) * BATCH_ITEMS, len(qlist)), len(qlist))
+    return out
+
+
+def _fetch_split(client: PoliteClient, qids: list[str]) -> list[dict]:
+    """Időtúllépésnél a köteget kettévágjuk."""
+    try:
+        return _sparql(client, enrich_query(qids))
+    except RuntimeError:
+        if len(qids) <= 10:
+            raise
+        mid = len(qids) // 2
+        return _fetch_split(client, qids[:mid]) + _fetch_split(client, qids[mid:])
+
+
+def fetch(client: PoliteClient, osm_qids: Iterable[str], refresh_classes: bool = False) -> list[SourceRecord]:
+    classes = class_map(client, refresh=refresh_classes)
+    found = discover(client, classes.keys())
+    records = enrich(client, set(found) | set(osm_qids), classes)
+    # A felderítésből jövő, de besorolhatatlan elemeket elhagyjuk; az OSM-címkéből
+    # jövőket megtartjuk (azonosító szerint kapcsolódnak, a kategóriát az OSM adja).
+    keep = [r for r in records if r.cat is not None or r.ref in set(osm_qids)]
+    log.info("Wikidata: %d rekord", len(keep))
+    return keep
+
+
+def verify_config(client: PoliteClient) -> list[str]:
+    """A categories.yaml QID-jeinek angol címkéje egyezik-e a várt címkével."""
+    roots = config.categories()["wikidata_classes"]
+    values = " ".join(f"wd:{r['qid']}" for r in roots)
+    rows = _sparql(
+        client,
+        f'SELECT ?q ?l WHERE {{ VALUES ?q {{ {values} }} ?q rdfs:label ?l . FILTER(LANG(?l) = "en") }}',
+    )
+    got = {_qid(r["q"]["value"]): r["l"]["value"].lower() for r in rows}
+    problems = []
+    for r in roots:
+        label = got.get(r["qid"])
+        if label != r["label"].lower():
+            problems.append(f"{r['qid']}: várt '{r['label']}', kapott '{label}'")
+    return problems

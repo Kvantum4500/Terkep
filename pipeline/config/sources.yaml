@@ -1,0 +1,141 @@
+# Adatforrások.
+#
+# kind:
+#   open       – nyílt licencű alapforrás (OSM, Wikidata): új pontot hozhat létre
+#   editorial  – szerkesztett, válogatott forrás („ezt érdemes megnézni”)
+#   registry   – nyilvántartás (csak azt mondja, hogy létezik)
+# mode:
+#   add        – új pontot is létrehozhat
+#   confirm    – csak meglévő ponthoz ad forráslinket és pontszámot
+#                (alapértelmezés minden harmadik félnél: EU adatbázisjog, Szjt. 84/A)
+# enabled:    false = nem fut, amíg a `discover` riport alapján nem döntöttünk.
+# ref_url:    a forráslink sablonja; {ref} helyére a rekord azonosítója kerül.
+#
+# Harmadik féltől CSAK tényt veszünk át (név, hely, kategória, település) +
+# visszalinket. Leírást, fotót nem.
+
+user_agent: "TerkepBot/0.1 (+https://github.com/Kvantum4500/Terkep)"
+
+sources:
+  osm:
+    label: OpenStreetMap
+    kind: open
+    mode: add
+    enabled: true
+    license: ODbL 1.0
+    ref_url: "https://www.openstreetmap.org/{ref}"
+    pbf_url: "https://download.geofabrik.de/europe/hungary-latest.osm.pbf"
+
+  wikidata:
+    label: Wikidata
+    kind: open
+    mode: add
+    enabled: true
+    license: CC0 1.0
+    ref_url: "https://www.wikidata.org/wiki/{ref}"
+    sparql_url: "https://query.wikidata.org/sparql"
+    min_interval_s: 1.0
+
+  huwiki:
+    label: Magyar Wikipédia
+    kind: editorial
+    mode: confirm
+    enabled: true
+    license: CC BY-SA 4.0 (csak címet és hivatkozást tárolunk)
+    ref_url: "https://hu.wikipedia.org/wiki/{ref}"
+    api_url: "https://hu.wikipedia.org/w/api.php"
+    min_interval_s: 1.0
+
+  commons:
+    label: Wikimedia Commons
+    kind: open
+    mode: confirm
+    enabled: true
+    license: képenként (szerző + licenc a ponton)
+    ref_url: "https://commons.wikimedia.org/wiki/File:{ref}"
+    api_url: "https://commons.wikimedia.org/w/api.php"
+    min_interval_s: 1.0
+
+  # --- Magyar túra- és látnivaló-oldalak (sorrend = feldolgozási sorrend) ---
+  kektura:
+    label: Kéktúra (MTSZ)
+    kind: editorial
+    mode: confirm
+    enabled: false
+    base_url: "https://kektura.hu"
+    ref_url: "https://kektura.hu{ref}"
+    note: Pecsételőhelyek (Országos Kékkör). GPX-útvonal/waypoint letöltés keresése.
+    flag: kektura
+
+  termeszetvedelem:
+    label: Természetvédelmi Információs Rendszer (barlangok)
+    kind: registry
+    mode: confirm
+    enabled: false
+    base_url: "https://www.termeszetvedelem.hu"
+    ref_url: "https://www.termeszetvedelem.hu{ref}"
+    note: Barlangnyilvántartás, látogatható barlangok listája -> „látogatható” jelző.
+    flag: showcave
+
+  muemlekem:
+    label: Műemlékem.hu
+    kind: registry
+    mode: confirm
+    enabled: false
+    base_url: "https://www.muemlekem.hu"
+    ref_url: "https://www.muemlekem.hu{ref}"
+    max_pages_per_run: 3000
+    flag: heritage
+
+  archeodatabase:
+    label: MNM Régészeti adatbázis
+    kind: registry
+    mode: confirm
+    enabled: false
+    base_url: "https://archeodatabase.hnm.hu"
+    ref_url: "https://archeodatabase.hnm.hu{ref}"
+    max_pages_per_run: 3000
+
+  turistautak:
+    label: turistautak.hu
+    kind: editorial
+    mode: confirm
+    enabled: false
+    base_url: "https://turistautak.hu"
+    ref_url: "https://turistautak.hu{ref}"
+    max_pages_per_run: 3000
+
+  termeszetjaro:
+    label: Természetjáró (MTSZ)
+    kind: editorial
+    mode: confirm
+    enabled: false
+    base_url: "https://www.termeszetjaro.hu"
+    ref_url: "https://www.termeszetjaro.hu{ref}"
+    max_pages_per_run: 3000
+
+  kirandulastippek:
+    label: Kirándulástippek
+    kind: editorial
+    mode: confirm
+    enabled: false
+    base_url: "https://www.kirandulastippek.hu"
+    ref_url: "https://www.kirandulastippek.hu{ref}"
+    max_pages_per_run: 3000
+
+  programturizmus:
+    label: Programturizmus
+    kind: registry
+    mode: confirm
+    enabled: false
+    base_url: "https://www.programturizmus.hu"
+    ref_url: "https://www.programturizmus.hu{ref}"
+    max_pages_per_run: 3000
+
+  # Kézi mintaadat (a valós adatfrissítés előtt) – nem szerepel az éles buildben.
+  sample:
+    label: Mintaadat (kézi)
+    kind: editorial
+    mode: add
+    enabled: true
+    ref_url: ""

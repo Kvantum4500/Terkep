@@ -1,0 +1,38 @@
+{
+  "name": "terkep-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Magyarorsz\u00e1g l\u00e1tnival\u00f3i \u2013 sz\u0171rhet\u0151 t\u00e9rk\u00e9p (PWA)",
+  "scripts": {
+    "data": "node scripts/build-data.ts",
+    "dev": "npm run data && vite",
+    "build": "npm run data && tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "e2e": "playwright test --trace off",
+    "icons": "pwa-assets-generator",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "maplibre-gl": "^6.18.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "workbox-window": "^7.4.1",
+    "zustand": "^5.1.0"
+  },
+  "devDependencies": {
+    "@mapbox/maki": "^8.2.0",
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^22.20.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vite-pwa/assets-generator": "^2.0.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "jsdom": "^31.0.1",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.8",
+    "vite-plugin-pwa": "^2.0.0",
+    "vitest": "^5.1.0"
+  }
+}

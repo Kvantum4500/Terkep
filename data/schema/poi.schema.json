@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Kvantum4500/Terkep/data/schema/poi.schema.json",
+  "title": "Látnivaló (POI)",
+  "description": "A data/pois.ndjson egy sora. A pipeline írja, a web-app olvassa.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "name", "cat", "lat", "lon", "county", "tier", "score", "flags", "sources"],
+  "properties": {
+    "id": {
+      "description": "Stabil azonosító: Wikidata QID, különben OSM-elem (n/w/r + szám), különben <forrás>:<ref>",
+      "type": "string",
+      "pattern": "^(Q[0-9]+|[nwr][0-9]+|[a-z]+:.+)$"
+    },
+    "name": {"type": "string", "minLength": 1},
+    "alt": {"type": "array", "items": {"type": "string"}, "maxItems": 3},
+    "cat": {
+      "enum": ["var", "kastely", "templom", "hid", "rom", "egyeb", "csucs", "barlang", "szikla", "vizeses",
+               "forras", "to", "volgy", "kert", "kilato", "kilatopont"]
+    },
+    "sub": {"type": "string"},
+    "lat": {"type": "number", "minimum": 45.7, "maximum": 48.62},
+    "lon": {"type": "number", "minimum": 16.05, "maximum": 22.95},
+    "county": {
+      "enum": ["BU", "BA", "BE", "BK", "BZ", "CS", "FE", "GS", "HB", "HE", "JN", "KE", "NO", "PE", "SO",
+               "SZ", "TO", "VA", "VE", "ZA"]
+    },
+    "settlement": {"type": "string"},
+    "tier": {"enum": [1, 2, 3]},
+    "score": {"type": "number"},
+    "flags": {"type": "integer", "minimum": 0},
+    "wikidata": {"type": "string", "pattern": "^Q[0-9]+$"},
+    "osm": {"type": "string", "pattern": "^[nwr][0-9]+$"},
+    "huwiki": {"type": "string"},
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["s", "ref"],
+        "properties": {"s": {"type": "string"}, "ref": {"type": "string"}}
+      }
+    },
+    "desc": {"type": "string"},
+    "ele": {"type": "number"},
+    "img": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file"],
+      "properties": {
+        "file": {"type": "string"},
+        "artist": {"type": "string"},
+        "license": {"type": "string"},
+        "license_url": {"type": "string"}
+      }
+    }
+  }
+}

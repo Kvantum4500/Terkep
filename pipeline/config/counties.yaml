@@ -1,0 +1,32 @@
+# Magyarország 19 vármegyéje + Budapest (ISO 3166-2:HU kódok).
+# A megjelenített nevet innen vesszük, nem az OSM-címkékből.
+# `ne_cities`: a Natural Earth tartalék-határokban külön szereplő megyei jogú
+# városok, amelyeket a befoglaló vármegyébe olvasztunk.
+counties:
+  BU: {name: Budapest, short: Budapest, seat: Budapest, ne_cities: []}
+  BA: {name: Baranya vármegye, short: Baranya, seat: Pécs, ne_cities: [PS]}
+  BE: {name: Békés vármegye, short: Békés, seat: Békéscsaba, ne_cities: [BC]}
+  BK: {name: Bács-Kiskun vármegye, short: Bács-Kiskun, seat: Kecskemét, ne_cities: [KM]}
+  BZ: {name: Borsod-Abaúj-Zemplén vármegye, short: Borsod-Abaúj-Zemplén, seat: Miskolc, ne_cities: [MI]}
+  CS: {name: Csongrád-Csanád vármegye, short: Csongrád-Csanád, seat: Szeged, ne_cities: [SD, HV]}
+  FE: {name: Fejér vármegye, short: Fejér, seat: Székesfehérvár, ne_cities: [SF, DU]}
+  GS: {name: Győr-Moson-Sopron vármegye, short: Győr-Moson-Sopron, seat: Győr, ne_cities: [GY, SN]}
+  HB: {name: Hajdú-Bihar vármegye, short: Hajdú-Bihar, seat: Debrecen, ne_cities: [DE]}
+  HE: {name: Heves vármegye, short: Heves, seat: Eger, ne_cities: [EG]}
+  JN: {name: Jász-Nagykun-Szolnok vármegye, short: Jász-Nagykun-Szolnok, seat: Szolnok, ne_cities: [SK]}
+  KE: {name: Komárom-Esztergom vármegye, short: Komárom-Esztergom, seat: Tatabánya, ne_cities: [TB]}
+  "NO": {name: Nógrád vármegye, short: Nógrád, seat: Salgótarján, ne_cities: [ST]}
+  PE: {name: Pest vármegye, short: Pest, seat: Budapest, ne_cities: [ED]}
+  SO: {name: Somogy vármegye, short: Somogy, seat: Kaposvár, ne_cities: [KV]}
+  SZ: {name: Szabolcs-Szatmár-Bereg vármegye, short: Szabolcs-Szatmár-Bereg, seat: Nyíregyháza, ne_cities: [NY]}
+  TO: {name: Tolna vármegye, short: Tolna, seat: Szekszárd, ne_cities: [SS]}
+  VA: {name: Vas vármegye, short: Vas, seat: Szombathely, ne_cities: [SH]}
+  VE: {name: Veszprém vármegye, short: Veszprém, seat: Veszprém, ne_cities: [VM]}
+  ZA: {name: Zala vármegye, short: Zala, seat: Zalaegerszeg, ne_cities: [ZE, NK]}
+
+# Pontok, amelyek egyik poligonba sem esnek, de ennyi méteren belül vannak
+# egy határtól (pl. az Írott-kői kilátó a határvonalon), a legközelebbi
+# vármegyéhez kerülnek. Ennél messzebb: elvetjük.
+border_snap_m: 1000
+# A durvább tartalék-határoknál (geoBoundaries/Natural Earth) nagyobb ráhagyás kell.
+fallback_border_snap_m: 3000

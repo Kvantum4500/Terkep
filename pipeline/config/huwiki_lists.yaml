@@ -1,0 +1,18 @@
+# Magyar Wikipédia-listák. Csak a hivatkozott szócikkek címét (-> Wikidata QID)
+# használjuk: ha egy látnivaló szerepel egy válogatott listán, az a
+# fontosságát növeli. A lista szövegét nem tároljuk.
+#
+# Nem létező címeket a pipeline naplózza és kihagyja; a pontos címeket az
+# első futás riportja alapján érdemes javítani.
+lists:
+  - {title: Magyarország várainak listája, cat: var}
+  - {title: Magyarországi kastélyok listája, cat: kastely}
+  - {title: Magyarország barlangjainak listája, cat: barlang}
+  - {title: Magyarország kilátóinak listája, cat: kilato}
+  - {title: Magyarország hegyeinek listája, cat: csucs}
+  - {title: Magyarország vízeséseinek listája, cat: vizeses}
+  - {title: Magyarország tavainak listája, cat: to}
+  - {title: Magyarországi zsinagógák listája, cat: templom}
+  - {title: Magyarország arborétumainak listája, cat: kert}
+  - {title: Magyarország világörökségi helyszínei, cat: null}
+  - {title: Magyarország fokozottan védett barlangjainak listája, cat: barlang}
