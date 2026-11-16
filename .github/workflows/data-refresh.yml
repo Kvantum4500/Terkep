@@ -97,7 +97,10 @@ jobs:
       - name: PR a friss adattal
         uses: peter-evans/create-pull-request@v7
         with:
+          # a PR abba az ágba megy, amelyen a workflow fut (alapértelmezett ág)
+          base: ${{ github.ref_name }}
           branch: adatfrissites
+          delete-branch: true
           commit-message: "Adatfrissítés: OSM, Wikidata, Wikipédia"
           title: "Adatfrissítés"
           body-path: pipeline/build/reports/report.md
