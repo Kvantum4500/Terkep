@@ -191,18 +191,43 @@ class PoliteClient:
     def post(self, url: str, data: dict | str, headers: dict | None = None, **kw) -> Response:
         return self._fetch("POST", url, data=data, headers=headers, **kw)
 
-    def download(self, url: str, dest: Path, chunk: int = 1 << 20) -> Path:
-        """Nagy fájl letöltése (pl. OSM PBF) folytatható módon, gyorsítótár nélkül."""
+    def download(
+        self, url: str, dest: Path, chunk: int = 1 << 20, attempts: int = 5, backoff_s: float = 15.0
+    ) -> Path:
+        """Nagy fájl letöltése (pl. OSM PBF), gyorsítótár nélkül.
+
+        Átmeneti hálózati hibánál (kapcsolódási hiba, megszakadt átvitel, 5xx)
+        újrapróbál, egyre hosszabb várakozással."""
         if self.offline:
             if dest.exists():
                 return dest
             raise OfflineMiss(url)
         dest.parent.mkdir(parents=True, exist_ok=True)
         tmp = dest.with_suffix(dest.suffix + ".part")
-        with self.session.get(url, stream=True, timeout=600) as r:
-            r.raise_for_status()
-            with tmp.open("wb") as f:
-                for block in r.iter_content(chunk):
-                    f.write(block)
-        tmp.replace(dest)
-        return dest
+        last_exc: Exception | None = None
+        for attempt in range(attempts):
+            try:
+                with self.session.get(url, stream=True, timeout=600) as r:
+                    if r.status_code >= 500:
+                        raise requests.HTTPError(f"HTTP {r.status_code}", response=r)
+                    r.raise_for_status()
+                    with tmp.open("wb") as f:
+                        for block in r.iter_content(chunk):
+                            f.write(block)
+                tmp.replace(dest)
+                return dest
+            except (
+                requests.ConnectionError,
+                requests.Timeout,
+                requests.exceptions.ChunkedEncodingError,
+            ) as exc:
+                last_exc = exc
+            except requests.HTTPError as exc:
+                if exc.response is not None and exc.response.status_code < 500:
+                    raise
+                last_exc = exc
+            if attempt < attempts - 1:
+                delay = backoff_s * 2**attempt
+                log.warning("Letöltési hiba (%s), újra %.0f s múlva: %s", last_exc, delay, url)
+                time.sleep(delay)
+        raise RuntimeError(f"Sikertelen letöltés {attempts} próbálkozás után: {url}: {last_exc}")

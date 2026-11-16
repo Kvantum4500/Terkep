@@ -105,3 +105,50 @@ def test_cli_marks_wikimedia_api_hosts():
 
     c = _client(argparse.Namespace(offline=True))
     assert {"query.wikidata.org", "hu.wikipedia.org", "commons.wikimedia.org"} <= c._api_hosts
+
+
+class _FlakyDownload:
+    """Az első két kérésnél kapcsolódási hiba, utána sikeres letöltés."""
+
+    def __init__(self, failures):
+        self.failures = failures
+        self.calls = 0
+
+    def get(self, url, **kw):
+        import requests
+
+        self.calls += 1
+        if self.calls <= self.failures:
+            raise requests.ConnectionError("[Errno 101] Network is unreachable")
+
+        class R:
+            status_code = 200
+
+            def raise_for_status(self):
+                pass
+
+            def iter_content(self, n):
+                yield b"PBF"
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+        return R()
+
+
+def test_download_retries_transient_network_errors(tmp_path):
+    c = PoliteClient(cache_dir=tmp_path)
+    c.session = _FlakyDownload(failures=2)
+    dest = c.download("https://download.example/x.pbf", tmp_path / "x.pbf", backoff_s=0)
+    assert dest.read_bytes() == b"PBF" and c.session.calls == 3
+
+
+def test_download_gives_up_after_attempts(tmp_path):
+    c = PoliteClient(cache_dir=tmp_path)
+    c.session = _FlakyDownload(failures=10)
+    with pytest.raises(RuntimeError, match="3 próbálkozás"):
+        c.download("https://download.example/x.pbf", tmp_path / "x.pbf", attempts=3, backoff_s=0)
+    assert c.session.calls == 3
