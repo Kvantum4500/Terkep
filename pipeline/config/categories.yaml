@@ -19,25 +19,28 @@ groups:
   termeszeti: {label: Természeti érték, order: 2}
   kilatas: {label: Kilátás, order: 3}
 
-# base: a pontszám kategória-alappontja (lásd score.py)
-# tier1_cap: legfeljebb ennyi „kiemelt” lehet a kategóriában országosan
+# base:           a pontszám kategória-alappontja (lásd score.py)
+# tier1_quota:    kategóriánként ennyi legjobb pontszámú lehet „kiemelt” (ha eléri a
+#                 TIER1_MIN_SCORE-t); így egy nagy kategória (templom, csúcs) nem
+#                 szorítja ki a többit
+# tier1_requires: csak ezzel a jelzővel lehet kiemelt (barlang: látogatható)
 categories:
-  var:        {label: "Vár, várrom",            group: epitett,    icon: castle,              color: "#9a3412", base: 2.0,  tier1_cap: 120}
-  kastely:    {label: "Kastély, kúria",         group: epitett,    icon: town-hall,           color: "#b45309", base: 1.5,  tier1_cap: 90}
-  templom:    {label: "Egyházi épület",         group: epitett,    icon: place-of-worship,    color: "#7c3aed", base: -1.0, tier1_cap: 120}
-  hid:        {label: "Híd, viadukt",           group: epitett,    icon: bridge,              color: "#475569", base: 0.5,  tier1_cap: 40}
-  rom:        {label: "Rom, régészeti hely",    group: epitett,    icon: historic,            color: "#78716c", base: 0.5,  tier1_cap: 50}
-  egyeb:      {label: "Egyéb látnivaló",        group: epitett,    icon: star,                color: "#be185d", base: 0.0,  tier1_cap: 60}
-  csucs:      {label: "Hegycsúcs",              group: termeszeti, icon: mountain,            color: "#166534", base: 0.5,  tier1_cap: 70}
-  barlang:    {label: "Barlang",                group: termeszeti, icon: cave,                color: "#3f3f46", base: 0.0,  tier1_cap: 40}
-  szikla:     {label: "Szikla, földtani érték", group: termeszeti, icon: volcano,             color: "#57534e", base: 1.0,  tier1_cap: 40}
-  vizeses:    {label: "Vízesés",                group: termeszeti, icon: waterfall,           color: "#0369a1", base: 2.0,  tier1_cap: 30}
-  forras:     {label: "Forrás",                 group: termeszeti, icon: spring,              color: "#0891b2", base: 0.0,  tier1_cap: 30}
-  to:         {label: "Tó",                     group: termeszeti, icon: water,               color: "#1d4ed8", base: 1.0,  tier1_cap: 40}
-  volgy:      {label: "Völgy, szurdok",         group: termeszeti, icon: valley,              color: "#4d7c0f", base: 1.0,  tier1_cap: 40}
-  kert:       {label: "Arborétum, kert",        group: termeszeti, icon: garden,              color: "#15803d", base: 1.0,  tier1_cap: 30}
-  kilato:     {label: "Kilátó",                 group: kilatas,    icon: observation-tower,   color: "#c2410c", base: 1.5,  tier1_cap: 80}
-  kilatopont: {label: "Kilátópont",             group: kilatas,    icon: viewpoint,           color: "#ea580c", base: 0.0,  tier1_cap: 40}
+  var:        {label: "Vár, várrom",            group: epitett,    icon: castle,              color: "#9a3412", base: 2.0,  tier1_quota: 80}
+  kastely:    {label: "Kastély, kúria",         group: epitett,    icon: town-hall,           color: "#b45309", base: 1.5,  tier1_quota: 60}
+  templom:    {label: "Egyházi épület",         group: epitett,    icon: place-of-worship,    color: "#7c3aed", base: -1.0, tier1_quota: 100}
+  hid:        {label: "Híd, viadukt",           group: epitett,    icon: bridge,              color: "#475569", base: 0.5,  tier1_quota: 30}
+  rom:        {label: "Rom, régészeti hely",    group: epitett,    icon: historic,            color: "#78716c", base: 0.5,  tier1_quota: 30}
+  egyeb:      {label: "Egyéb látnivaló",        group: epitett,    icon: star,                color: "#be185d", base: 0.0,  tier1_quota: 40}
+  csucs:      {label: "Hegycsúcs",              group: termeszeti, icon: mountain,            color: "#166534", base: 0.5,  tier1_quota: 50}
+  barlang:    {label: "Barlang",                group: termeszeti, icon: cave,                color: "#3f3f46", base: -2.0, tier1_quota: 20, tier1_requires: showcave}
+  szikla:     {label: "Szikla, földtani érték", group: termeszeti, icon: volcano,             color: "#57534e", base: 1.0,  tier1_quota: 25}
+  vizeses:    {label: "Vízesés",                group: termeszeti, icon: waterfall,           color: "#0369a1", base: 2.0,  tier1_quota: 10}
+  forras:     {label: "Forrás",                 group: termeszeti, icon: spring,              color: "#0891b2", base: 0.0,  tier1_quota: 10}
+  to:         {label: "Tó",                     group: termeszeti, icon: water,               color: "#1d4ed8", base: 1.0,  tier1_quota: 25}
+  volgy:      {label: "Völgy, szurdok",         group: termeszeti, icon: valley,              color: "#4d7c0f", base: 1.0,  tier1_quota: 20}
+  kert:       {label: "Arborétum, kert",        group: termeszeti, icon: garden,              color: "#15803d", base: 1.0,  tier1_quota: 12}
+  kilato:     {label: "Kilátó",                 group: kilatas,    icon: observation-tower,   color: "#c2410c", base: 1.5,  tier1_quota: 30}
+  kilatopont: {label: "Kilátópont",             group: kilatas,    icon: viewpoint,           color: "#ea580c", base: 0.0,  tier1_quota: 15}
 
 # Kategóriák, amelyek összevonáskor kompatibilisek egymással (szimmetrikus).
 # "strong_name": csak erős névegyezésnél (>= 0.85).

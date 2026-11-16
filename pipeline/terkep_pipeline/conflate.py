@@ -197,11 +197,16 @@ def _absorb(primary: SourceRecord, r: SourceRecord) -> None:
             primary.extra[k] = True
 
 
-def _merge_same_qid(recs: list[SourceRecord], report: Report) -> list[SourceRecord]:
+def _merge_same_qid(
+    recs: list[SourceRecord], report: Report, qid_cat: dict[str, str | None] | None = None
+) -> list[SourceRecord]:
     """Egy forráson belül azonos QID-ű rekordok (pl. egy hosszú híd vagy tó több
-    OSM-darabja): SAME_QID_MAX_M-en belül egy rekord lesz belőlük; a távolabbiakról
-    levesszük a QID-et (valószínű címkézési hiba), különben két pont kapná
-    ugyanazt az azonosítót."""
+    OSM-darabja) egy rekorddá olvadnak, ha SAME_QID_MAX_M-en belül vannak ÉS a
+    kategóriájuk összeegyeztethető. Különben a QID csak egy rekordon marad – azon,
+    amelyiknek a kategóriája a Wikidata-elemével egyezik (qid_cat) –, a többiről
+    levesszük (valószínű címkézési hiba, pl. a csúcs QID-je a rajta álló kilátón),
+    hogy két pont ne kapja ugyanazt az azonosítót, és egyik se tűnjön el."""
+    qid_cat = qid_cat or {}
     groups: dict[str, list[SourceRecord]] = defaultdict(list)
     for r in recs:
         if r.wikidata:
@@ -210,38 +215,38 @@ def _merge_same_qid(recs: list[SourceRecord], report: Report) -> list[SourceReco
     for qid, group in groups.items():
         if len(group) < 2:
             continue
-        primary = group[0]
-        for r in group[1:]:
-            near = (
-                r.has_coords
-                and primary.has_coords
-                and distance_m(r.lat, r.lon, primary.lat, primary.lon) <= SAME_QID_MAX_M
+        wanted = qid_cat.get(qid)
+        primary = next((r for r in group if wanted and r.cat == wanted), group[0])
+        for r in group:
+            if r is primary:
+                continue
+            d = (
+                distance_m(r.lat, r.lon, primary.lat, primary.lon)
+                if r.has_coords and primary.has_coords
+                else -1
             )
-            if near:
+            if 0 <= d <= SAME_QID_MAX_M and categories_compatible(primary.cat, r.cat, 1.0):
                 _absorb(primary, r)
                 absorbed.add(id(r))
                 report.deduped += 1
             else:
-                d = (
-                    distance_m(r.lat, r.lon, primary.lat, primary.lon)
-                    if r.has_coords and primary.has_coords
-                    else -1
-                )
                 r.extra["dropped_wikidata"] = qid
                 r.wikidata = None
                 report.qid_conflicts.append(
-                    {"forras": r.key, "nev": r.name, "qid": qid, "tavolsag_m": round(d)}
+                    {"forras": r.key, "nev": r.name, "kat": r.cat or "", "qid": qid, "tavolsag_m": round(d)}
                 )
     return [r for r in recs if id(r) not in absorbed]
 
 
-def _dedupe_within_source(records: list[SourceRecord], report: Report) -> list[SourceRecord]:
+def _dedupe_within_source(
+    records: list[SourceRecord], report: Report, qid_cat: dict[str, str | None] | None = None
+) -> list[SourceRecord]:
     by_source: dict[str, list[SourceRecord]] = defaultdict(list)
     for r in records:
         by_source[r.source].append(r)
     out: list[SourceRecord] = []
     for _source, recs in by_source.items():
-        recs = _merge_same_qid(recs, report)
+        recs = _merge_same_qid(recs, report, qid_cat)
         grid = GridIndex(cell_m=200)
         kept: list[SourceRecord] = []
         for r in recs:
@@ -426,7 +431,9 @@ class Conflator:
 
 def conflate(records: list[SourceRecord], source_order: list[str], source_cfgs: dict[str, dict]) -> Conflator:
     conf = Conflator(source_cfgs)
-    records = _dedupe_within_source(records, conf.report)
+    # a Wikidata-elemek saját kategóriája: ez dönti el, melyik OSM-rekordon marad a QID
+    qid_cat = {r.ref: r.cat for r in records if r.source == "wikidata"}
+    records = _dedupe_within_source(records, conf.report, qid_cat)
     by_source: dict[str, list[SourceRecord]] = defaultdict(list)
     for r in records:
         by_source[r.source].append(r)

@@ -285,3 +285,21 @@ def test_ensure_unique_ids_safety_net():
     assert ensure_unique_ids([a, b, c]) == 2
     assert (a.id, b.id, c.id) == ("Q5", "n2", "huwiki:C")
     assert a.wikidata == "Q5" and b.wikidata is None and c.wikidata is None
+
+
+def test_same_qid_on_peak_and_tower_keeps_both():
+    """Valós eset: a János-hegy csúcsa és az Erzsébet-kilátó ugyanazt a QID-et
+    viselte az OSM-ben; a kilátó eltűnt. A QID a Wikidata-elem kategóriájával
+    egyező rekordon marad, a kilátó QID nélkül, külön pont lesz."""
+    conf, pois = run(
+        [
+            rec("osm", "n1", "Erzsébet-kilátó", 47.5181, 18.9590, cat="kilato", wikidata="Q897730"),
+            rec("osm", "n2", "János-hegy", 47.5183, 18.9592, cat="csucs", wikidata="Q897730"),
+            rec("wikidata", "Q897730", "János-hegy", 47.5183, 18.9592, cat="csucs", wikidata="Q897730"),
+        ]
+    )
+    by_cat = {p.cat: p for p in pois}
+    assert set(by_cat) == {"csucs", "kilato"}
+    assert by_cat["csucs"].id == "Q897730" and by_cat["csucs"].osm == "n2"
+    assert by_cat["kilato"].id == "n1" and by_cat["kilato"].wikidata is None
+    assert [c["forras"] for c in conf.report.qid_conflicts] == ["osm:n1"]

@@ -1,31 +1,33 @@
-# Aranylista: híres látnivalók, amelyeknek a valós buildben „kiemelt” szinten,
-# a megadott vármegyében és kategóriában kell szerepelniük.
-# `match`: a normalizált (ékezet nélküli, kisbetűs) névben keresett szórészek.
+# Aranylista: híres látnivalók, amelyeknek a valós buildben a megadott
+# vármegyében, a megadott kategóriák egyikében, legfeljebb `max_tier` szinten
+# (alapból 1 = kiemelt) kell szerepelniük.
+# `match`: szórészek, amelyeknek mind szerepelniük kell a pont normalizált
+# (ékezet nélküli, kisbetűs) nevében + településében.
 golden:
-  - {county: PE, cat: var,      match: [visegrad]}
-  - {county: PE, cat: volgy,    match: [ram, szakadek]}
-  - {county: PE, cat: kastely,  match: [godollo]}
-  - {county: BU, cat: hid,      match: [lanchid]}
-  - {county: BU, cat: kilato,   match: [erzsebet, kilato]}
-  - {county: BZ, cat: barlang,  match: [baradla]}
-  - {county: BZ, cat: var,      match: [fuzer]}
-  - {county: VE, cat: szikla,   match: [szent gyorgy]}
-  - {county: VE, cat: templom,  match: [tihany]}
-  - {county: KE, cat: templom,  match: [esztergom]}
-  - {county: HE, cat: csucs,    match: [kekes]}
-  - {county: HE, cat: var,      match: [egri]}
-  - {county: GS, cat: templom,  match: [pannonhalm]}
-  - {county: "NO", cat: var,    match: [holloko]}
-  - {county: ZA, cat: to,       match: [heviz]}
-  - {county: ZA, cat: kastely,  match: [festetics]}
-  - {county: VA, cat: templom,  match: [jak]}
-  - {county: BA, cat: templom,  match: [pecs]}
-  - {county: BK, cat: templom,  match: [kalocsa]}
-  - {county: BE, cat: var,      match: [gyula]}
-  - {county: CS, cat: templom,  match: [fogadalmi]}
-  - {county: HB, cat: hid,      match: [kilenclyuku]}
-  - {county: SZ, cat: templom,  match: [takos]}
-  - {county: JN, cat: kert,     match: [tiszakurt]}
-  - {county: TO, cat: var,      match: [dunafoldvar]}
-  - {county: FE, cat: var,      match: [bory]}
-  - {county: SO, cat: hid,      match: [koroshegy]}
+  - {county: PE, cat: var,               match: [visegrad]}
+  - {county: KE, cat: [volgy, szikla],   match: [ram szakadek]}        # Dömös: Komárom-Esztergom
+  - {county: PE, cat: kastely,           match: [godollo]}
+  - {county: BU, cat: hid,               match: [lanchid]}
+  - {county: BU, cat: kilato,            match: [erzsebet, kilato]}
+  - {county: BZ, cat: barlang,           match: [baradla]}
+  - {county: BZ, cat: var,               match: [fuzer]}
+  - {county: VE, cat: [csucs, szikla],   match: [szent gyorgy hegy]}
+  - {county: VE, cat: templom,           match: [tihany, apatsag]}
+  - {county: KE, cat: templom,           match: [esztergom, adalbert]}  # főszékesegyház (bazilika)
+  - {county: HE, cat: csucs,             match: [kekes]}
+  - {county: HE, cat: var,               match: [egri]}
+  - {county: GS, cat: templom,           match: [pannonhalm]}
+  - {county: "NO", cat: var,             match: [holloko]}
+  - {county: ZA, cat: to,                match: [heviz]}
+  - {county: ZA, cat: kastely,           match: [festetics, keszthely]}
+  - {county: VA, cat: templom,           match: [jak, gyorgy]}
+  - {county: BA, cat: templom,           match: [pecs]}
+  - {county: BK, cat: templom,           match: [kalocsa, foszekesegyhaz]}
+  - {county: BE, cat: var,               match: [gyula]}
+  - {county: CS, cat: templom,           match: [szeged, nagyasszonya]} # Fogadalmi templom (dóm)
+  - {county: HB, cat: hid,               match: [kilenclyuku]}
+  - {county: SZ, cat: templom,           match: [takos]}
+  - {county: JN, cat: kert,              match: [tiszakurt]}
+  - {county: TO, cat: [var, kilato],     match: [dunafoldvar, torony]}  # Csonka-torony (a vár tornya)
+  - {county: FE, cat: [var, kastely],    match: [bory]}
+  - {county: SO, cat: hid,               match: [koroshegy]}

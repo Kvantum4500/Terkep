@@ -58,10 +58,12 @@ azonosító (Wikidata QID), távolság és névhasonlóság alapján vonja össz
 eltérő sugárral (templom 150 m, vár 600 m, tó 1,5 km…). Két különböző templom egy
 faluban nem olvad össze; a csúcs és a rajta álló kilátó külön marad.
 
-**Fontosság:** pontszám (Wikipédia-cikk, nyelvi változatok száma, hány válogatott
-forrás említi, védettség, kép, kategória) → szintek: *kiemelt* (~1,5%), *érdekes*
-(~12%), *helyi*. Kategóriánkénti felső korlát, hogy a falusi templomok ne árasszák el
-a térképet, és vármegyénként legalább 8 „érdekes” pont.
+**Fontosság:** pontszám (magyar Wikipédia-cikk, nyelvi változatok száma, hány válogatott
+forrás említi, védettség, kép, kategória) → szintek:
+*kiemelt* – kategóriánként a legjobb N (pl. vár 80, templom 100, kilátó 30; barlangnál csak
+a látogatható), *érdekes* – a maradék országos rangsorának felső ~12%-a, legalább 8
+vármegyénként, *helyi* – a többi. Az automatikusan alulértékelt, de híres helyeket a
+`pipeline/curation/overrides.yaml` emeli ki; az aranylista (`golden.yaml`) ezt ellenőrzi.
 
 **Túraoldalak:** csak tényeket veszünk át (név, hely, kategória) és visszalinkelünk.
 Alapból *megerősítő* módban futnak: meglévő ponthoz adnak forrást és fontosságot,

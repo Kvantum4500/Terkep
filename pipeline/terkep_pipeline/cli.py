@@ -170,20 +170,24 @@ def cmd_build(args) -> int:
 
 
 def check_golden(data_dir: Path) -> list[str]:
+    """Aranylista: minden tételhez legyen legalább egy pont a megadott vármegyében,
+    a megadott kategóriák egyikében, amelynek (név + település) szövegében minden
+    `match` szórész szerepel, és a szintje legfeljebb `max_tier` (alapból 1)."""
     rows = load_ndjson(data_dir / "pois.ndjson")
     failures = []
     for g in config.golden():
+        cats = g["cat"] if isinstance(g["cat"], list) else [g["cat"]]
         hits = [
             r
             for r in rows
             if r["county"] == g["county"]
-            and r["cat"] == g["cat"]
-            and all(m in fold(r["name"]) for m in g["match"])
+            and r["cat"] in cats
+            and all(m in fold(f"{r['name']} {r.get('settlement', '')}") for m in g["match"])
         ]
         if not hits:
             failures.append(f"hiányzik: {g}")
-        elif not any(r["tier"] == 1 for r in hits):
-            failures.append(f"nem kiemelt: {g} -> {[(r['name'], r['tier']) for r in hits]}")
+        elif not any(r["tier"] <= g.get("max_tier", 1) for r in hits):
+            failures.append(f"nem kiemelt: {g} -> {[(r['name'], r['cat'], r['tier']) for r in hits][:5]}")
     return failures
 
 
