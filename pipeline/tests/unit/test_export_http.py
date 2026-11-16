@@ -185,3 +185,36 @@ def test_fetch_pbf_uses_previous_copy_when_all_mirrors_fail(tmp_path):
     dest.unlink()
     with pytest.raises(RuntimeError, match="nincs korábbi példány"):
         fetch_pbf(_MirrorClient(ok_urls=set()), ["https://fo/a.pbf"], dest)
+
+
+class _AlwaysTimeout:
+    def __init__(self):
+        self.calls = 0
+
+    def request(self, method, url, **kw):
+        self.calls += 1
+
+        class R:
+            status_code = 504
+            text = "upstream request timeout"
+            headers = {}
+
+        return R()
+
+
+def test_fetch_respects_attempts(tmp_path, monkeypatch):
+    import terkep_pipeline.http as http_mod
+
+    slept = []
+    monkeypatch.setattr(http_mod.time, "sleep", slept.append)
+    c = PoliteClient(cache_dir=tmp_path, default_interval_s=0)
+    c.session = _AlwaysTimeout()
+    c.mark_api_host("query.wikidata.org")
+    with pytest.raises(RuntimeError, match="HTTP 504"):
+        c.post("https://query.wikidata.org/sparql", data={"query": "x"}, attempts=2)
+    # két kérés, és az utolsó után már nem vár feleslegesen
+    assert c.session.calls == 2 and len(slept) == 1
+    c.session = _AlwaysTimeout()
+    with pytest.raises(RuntimeError):
+        c.post("https://query.wikidata.org/sparql", data={"query": "y"})
+    assert c.session.calls == 5

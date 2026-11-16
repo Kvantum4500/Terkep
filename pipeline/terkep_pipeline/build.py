@@ -146,6 +146,15 @@ def _csv(path: Path, rows: list[dict]) -> None:
             w.writerows(rows)
 
 
+def _wikidata_skipped_classes() -> list[str]:
+    from .sources.wikidata import SKIPPED_PATH
+
+    try:
+        return json.loads(SKIPPED_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+
+
 def write_reports(
     out: Path, pois: list[Poi], conf: Conflator, dropped: list[dict], mismatch: list[dict]
 ) -> None:
@@ -184,6 +193,12 @@ def write_reports(
         f"- Elvetett pont: {len(dropped)} (dropped.csv)",
         f"- Eltérő vármegye a vártnál: {len(mismatch)} (county_mismatch.csv)",
     ]
+    skipped = _wikidata_skipped_classes()
+    if skipped:
+        lines.append(
+            f"- Wikidata-osztály kimaradt a felderítésből (időtúllépés): {len(skipped)} – "
+            + ", ".join(skipped[:20])
+        )
     (out / "report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 

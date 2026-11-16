@@ -56,7 +56,7 @@ class _FakeSparql:
     def __init__(self):
         self.queries = 0
 
-    def post(self, url, data, headers=None, timeout=None):
+    def post(self, url, data, headers=None, **kw):
         from terkep_pipeline.http import Response
 
         self.queries += 1
@@ -83,3 +83,79 @@ def test_class_map_refreshes_when_roots_change(tmp_path):
     # aktuális ujjlenyomattal: nincs újabb lekérdezés
     c2 = _FakeSparql()
     assert class_map(c2, path=path) == m and c2.queries == 0
+
+
+class _TimeoutSparql:
+    """Felderítő lekérdezés: túl sok osztályra (vagy a `bad` osztályokra) 504, egyébként
+    osztályonként egy elem (Q<n> -> Q<n>000)."""
+
+    def __init__(self, max_classes, bad=()):
+        self.max_classes = max_classes
+        self.bad = set(bad)
+        self.sizes = []
+
+    def post(self, url, data, headers=None, **kw):
+        import json as _json
+        import re
+
+        from terkep_pipeline.http import Response
+
+        classes = re.search(r"VALUES \?class \{([^}]*)\}", data["query"]).group(1).split()
+        classes = [c.removeprefix("wd:") for c in classes]
+        self.sizes.append(len(classes))
+        if len(classes) > self.max_classes or self.bad & set(classes):
+            return Response(url, 504, "upstream request timeout", {})
+        rows = [{"item": {"type": "uri", "value": f"{E}{c}000"}} for c in classes]
+        return Response(url, 200, _json.dumps({"results": {"bindings": rows}}), {})
+
+
+def test_discover_halves_batches_that_time_out():
+    from terkep_pipeline.sources.wikidata import discover
+
+    classes = [f"Q{i}" for i in range(1, 11)]
+    c = _TimeoutSparql(max_classes=3)
+    found, skipped = discover(c, classes)
+    assert found == {f"{q}000" for q in classes} and skipped == []
+    assert max(s for s in c.sizes if s <= 3) <= 3 and c.sizes[0] == 10
+
+
+def test_discover_skips_single_class_that_keeps_failing():
+    from terkep_pipeline.sources.wikidata import discover
+
+    classes = [f"Q{i}" for i in range(1, 9)]
+    found, skipped = discover(_TimeoutSparql(max_classes=100, bad={"Q5"}), classes)
+    assert skipped == ["Q5"]
+    assert found == {f"{q}000" for q in classes if q != "Q5"}
+
+
+def test_discover_gives_up_when_service_is_down():
+    import pytest
+
+    from terkep_pipeline.sources.wikidata import MAX_SKIPPED_CLASSES, discover
+
+    classes = [f"Q{i}" for i in range(1, 200)]
+    c = _TimeoutSparql(max_classes=0)
+    with pytest.raises(RuntimeError, match="elérhetetlen"):
+        discover(c, classes)
+    # nem járja végig mind a 199 osztályt egyesével
+    assert sum(1 for s in c.sizes if s == 1) == MAX_SKIPPED_CLASSES + 1
+
+
+def test_split_queries_use_few_retries_others_more():
+    from terkep_pipeline.sources import wikidata
+
+    seen = []
+
+    class C:
+        def post(self, url, data, headers=None, **kw):
+            from terkep_pipeline.http import Response
+
+            seen.append(kw["attempts"])
+            return Response(url, 200, '{"results": {"bindings": []}}', {})
+
+    wikidata.discover(C(), ["Q1"])
+    wikidata.enrich(C(), [f"Q{i}" for i in range(1, 50)], {})
+    wikidata.enrich(C(), ["Q1"], {})
+    wikidata._sparql(C(), "SELECT 1")
+    assert seen == [wikidata.SPLIT_ATTEMPTS] * 2 + [wikidata.SPARQL_ATTEMPTS] * 2
+    assert wikidata.SPLIT_ATTEMPTS < wikidata.SPARQL_ATTEMPTS

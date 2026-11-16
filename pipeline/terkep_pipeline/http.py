@@ -144,7 +144,10 @@ class PoliteClient:
         headers: dict | None = None,
         check_robots: bool = True,
         timeout: float = 120.0,
+        attempts: int = 5,
     ) -> Response:
+        """Udvarias kérés gyorsítótárral. Hálózati hibánál és 429/5xx válasznál
+        legfeljebb `attempts`-szer próbálkozik (az utolsó után nem vár)."""
         full_url = requests.Request(method, url, params=params).prepare().url or url
         body = json.dumps(data, sort_keys=True) if isinstance(data, dict) else data
         path = self._cache_path(method, full_url, body)
@@ -162,7 +165,8 @@ class PoliteClient:
         ):
             raise RobotsDisallowed(full_url)
         last_exc: Exception | None = None
-        for attempt in range(5):
+        for attempt in range(attempts):
+            last = attempt == attempts - 1
             self._throttle(host)
             try:
                 r = self.session.request(
@@ -170,14 +174,18 @@ class PoliteClient:
                 )
             except requests.RequestException as exc:
                 last_exc = exc
-                time.sleep(min(60, 2**attempt * 2))
+                if not last:
+                    time.sleep(min(60, 2**attempt * 2))
                 continue
             if r.status_code in (429, 500, 502, 503, 504):
+                last_exc = RuntimeError(f"HTTP {r.status_code}")
+                if last:
+                    log.warning("%s -> %s (%d. próbálkozás, feladom)", full_url, r.status_code, attempts)
+                    continue
                 retry_after = r.headers.get("Retry-After", "")
                 delay = float(retry_after) if retry_after.isdigit() else min(120, 2**attempt * 5)
                 log.warning("%s -> %s, várok %.0f s-ot", full_url, r.status_code, delay)
                 time.sleep(delay)
-                last_exc = RuntimeError(f"HTTP {r.status_code}")
                 continue
             resp = Response(full_url, r.status_code, r.text, {k.lower(): v for k, v in r.headers.items()})
             if r.status_code < 400 or r.status_code == 404:
