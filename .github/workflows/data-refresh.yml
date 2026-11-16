@@ -56,12 +56,29 @@ jobs:
           key: terkep-http-${{ github.run_id }}
           restore-keys: terkep-http-
 
+      # Hibás QID (pl. „arboretum” helyett „warehouse”) csendben rossz adatot adna:
+      # ezért ez a lépés megállítja a futást.
       - name: Wikidata QID-ek ellenőrzése
         run: terkep verify-config
-        continue-on-error: true
 
-      - name: OpenStreetMap (Geofabrik PBF)
+      # Az OSM-kivonat (~300 MB) a GitHub gyorsítótárában is megmarad: ha a
+      # letöltőszerverek épp nem érhetők el, a legutóbbi példánnyal megy tovább,
+      # és egy hétnél frissebb példányt nem tölt le újra.
+      - name: OSM-kivonat visszaállítása a gyorsítótárból
+        uses: actions/cache/restore@v4
+        with:
+          path: pipeline/cache/osm
+          key: terkep-pbf-${{ github.run_id }}
+          restore-keys: terkep-pbf-
+
+      - name: OpenStreetMap (Geofabrik PBF, tükörrel)
         run: terkep fetch osm
+
+      - name: OSM-kivonat mentése a gyorsítótárba
+        uses: actions/cache/save@v4
+        with:
+          path: pipeline/cache/osm
+          key: terkep-pbf-${{ github.run_id }}
       - name: Wikidata
         run: terkep fetch wikidata
       - name: Magyar Wikipédia-listák

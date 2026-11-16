@@ -145,7 +145,8 @@ wikidata_classes:
   - {qid: Q150784,  label: canyon,               cat: volgy}
   - {qid: Q39816,   label: valley,               cat: volgy}
   - {qid: Q167346,  label: botanical garden,     cat: kert}
-  - {qid: Q181623,  label: arboretum,            cat: kert}
+  # (az arborétum a botanikus kert alosztálya, külön gyökér nem kell;
+  #  a korábbi Q181623 valójában a „warehouse”, a verify-config szólt)
   - {qid: Q8072,    label: volcano,              cat: csucs}
   - {qid: Q8502,    label: mountain,             cat: csucs}
   - {qid: Q54050,   label: hill,                 cat: csucs}

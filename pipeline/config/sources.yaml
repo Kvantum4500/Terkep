@@ -24,7 +24,10 @@ sources:
     enabled: true
     license: ODbL 1.0
     ref_url: "https://www.openstreetmap.org/{ref}"
-    pbf_url: "https://download.geofabrik.de/europe/hungary-latest.osm.pbf"
+    # sorrendben próbálja; ha mind elérhetetlen, a legutóbbi letöltött PBF-fel dolgozik
+    pbf_urls:
+      - "https://download.geofabrik.de/europe/hungary-latest.osm.pbf"
+      - "https://download.openstreetmap.fr/extracts/europe/hungary-latest.osm.pbf"
 
   wikidata:
     label: Wikidata

@@ -68,6 +68,25 @@ def cmd_boundaries(args) -> int:
     return 0
 
 
+def fetch_pbf(client: PoliteClient, urls: list[str], dest: Path) -> Path:
+    """A Magyarország-kivonat letöltése: a tükrök sorrendben; ha egyik sem érhető
+    el, a korábban letöltött (pl. a CI-gyorsítótárból visszaállított) fájllal megy
+    tovább, figyelmeztetéssel. Ha az sincs, hibát dob."""
+    errors = []
+    for url in urls:
+        log.info("PBF letöltése: %s", url)
+        try:
+            return client.download(url, dest, attempts=3)
+        except Exception as exc:  # noqa: BLE001 - a következő tükörrel próbálkozunk
+            errors.append(f"{url}: {exc}")
+            log.warning("PBF-tükör nem elérhető: %s", url)
+    if dest.exists():
+        age_days = (time.time() - dest.stat().st_mtime) / 86400
+        log.warning("Egyik tükör sem elérhető; a meglévő, %.1f napos PBF-fel folytatom.", age_days)
+        return dest
+    raise RuntimeError("A PBF nem tölthető le, és nincs korábbi példány: " + " | ".join(errors))
+
+
 def cmd_fetch(args) -> int:
     client = _client(args)
     what = args.what
@@ -76,8 +95,7 @@ def cmd_fetch(args) -> int:
 
         pbf = Path(args.pbf) if args.pbf else CACHE_DIR / "osm" / "hungary-latest.osm.pbf"
         if not args.pbf and (not pbf.exists() or time.time() - pbf.stat().st_mtime > 7 * 86400):
-            log.info("PBF letöltése…")
-            client.download(config.source_cfg("osm")["pbf_url"], pbf)
+            fetch_pbf(client, config.source_cfg("osm")["pbf_urls"], pbf)
         recs, counties, settlements = osm_pbf.extract(pbf)
         records.save("osm", recs)
         osm_pbf.write_boundaries(counties, settlements)

@@ -152,3 +152,36 @@ def test_download_gives_up_after_attempts(tmp_path):
     with pytest.raises(RuntimeError, match="3 próbálkozás"):
         c.download("https://download.example/x.pbf", tmp_path / "x.pbf", attempts=3, backoff_s=0)
     assert c.session.calls == 3
+
+
+class _MirrorClient:
+    def __init__(self, ok_urls):
+        self.ok_urls = ok_urls
+        self.tried = []
+
+    def download(self, url, dest, attempts=3):
+        self.tried.append(url)
+        if url not in self.ok_urls:
+            raise RuntimeError("Network is unreachable")
+        dest.write_bytes(b"PBF")
+        return dest
+
+
+def test_fetch_pbf_falls_back_to_mirror(tmp_path):
+    from terkep_pipeline.cli import fetch_pbf
+
+    c = _MirrorClient(ok_urls={"https://tukor/b.pbf"})
+    dest = tmp_path / "hu.pbf"
+    assert fetch_pbf(c, ["https://fo/a.pbf", "https://tukor/b.pbf"], dest) == dest
+    assert c.tried == ["https://fo/a.pbf", "https://tukor/b.pbf"]
+
+
+def test_fetch_pbf_uses_previous_copy_when_all_mirrors_fail(tmp_path):
+    from terkep_pipeline.cli import fetch_pbf
+
+    dest = tmp_path / "hu.pbf"
+    dest.write_bytes(b"REGI")
+    assert fetch_pbf(_MirrorClient(ok_urls=set()), ["https://fo/a.pbf"], dest).read_bytes() == b"REGI"
+    dest.unlink()
+    with pytest.raises(RuntimeError, match="nincs korábbi példány"):
+        fetch_pbf(_MirrorClient(ok_urls=set()), ["https://fo/a.pbf"], dest)
