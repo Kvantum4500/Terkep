@@ -78,7 +78,9 @@ jobs:
       - name: Összevonás, pontozás, export
         run: terkep build
       - name: Adatminőségi tesztek
-        run: pytest -q -m data
+        # az eredmény a riportba kerül; a PR-en a CI is lefuttatja és jelzi
+        run: pytest -q -m data 2>&1 | tee build/reports/data_qa.txt
+        continue-on-error: true
       - name: Aranylista
         id: golden
         run: terkep golden | tee build/reports/golden.txt

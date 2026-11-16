@@ -472,3 +472,37 @@ def build_poi(cl: Cluster) -> Poi | None:
         "showcave": any(r.extra.get("showcave") for r in recs),
     }
     return poi
+
+
+FINAL_DEDUPE_M = 30.0
+
+
+def merge_close_duplicates(pois: list[Poi]) -> tuple[list[Poi], int]:
+    """Utolsó biztonsági kör: azonos kategóriájú, azonos nevű pontok 30 m-en belül
+    egy pontba (pl. ugyanarra a helyre mutató két különböző Wikidata-elem).
+    A több forrással rendelkező pont marad meg, a másik forrásai átkerülnek rá."""
+    order = sorted(pois, key=lambda p: (-len(p.sources), p.id))
+    grid = GridIndex(cell_m=100)
+    kept: list[Poi] = []
+    merged = 0
+    for p in order:
+        target = None
+        for other, _d in grid.near(p.lat, p.lon, FINAL_DEDUPE_M):
+            if other.cat == p.cat and fold(other.name) == fold(p.name):
+                target = other
+                break
+        if target is None:
+            grid.add(p.lat, p.lon, p)
+            kept.append(p)
+            continue
+        merged += 1
+        have = {(s["s"], s["ref"]) for s in target.sources}
+        target.sources.extend(s for s in p.sources if (s["s"], s["ref"]) not in have)
+        target.flags |= p.flags
+        for attr in ("wikidata", "osm", "huwiki", "desc", "ele", "img", "settlement", "sub"):
+            if getattr(target, attr) in (None, "") and getattr(p, attr) not in (None, ""):
+                setattr(target, attr, getattr(p, attr))
+        target.meta["sitelinks"] = max(target.meta.get("sitelinks", 0), p.meta.get("sitelinks", 0))
+        target.meta["sources"] = set(target.meta.get("sources", set())) | set(p.meta.get("sources", set()))
+        target.meta["showcave"] = target.meta.get("showcave") or p.meta.get("showcave")
+    return kept, merged

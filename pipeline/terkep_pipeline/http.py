@@ -61,9 +61,19 @@ class PoliteClient:
         self._last: dict[str, float] = {}
         self._intervals: dict[str, float] = {}
         self._robots: dict[str, urllib.robotparser.RobotFileParser | None] = {}
+        self._api_hosts: set[str] = set()
 
     def set_interval(self, host: str, seconds: float) -> None:
         self._intervals[host] = seconds
+
+    def mark_api_host(self, host: str) -> None:
+        """Hivatalos, gépi használatra szánt API (pl. Wikidata SPARQL, MediaWiki API).
+
+        A robots.txt weboldalak bejárására vonatkozik; ezeknél az API-knál az
+        üzemeltető User-Agent-szabálya az irányadó (azt betartjuk), a robots.txt-t
+        nem nézzük. A túraoldalak bejárásánál a robots.txt továbbra is kötelező.
+        """
+        self._api_hosts.add(host)
 
     # -- gyorsítótár --------------------------------------------------------
     def _cache_path(self, method: str, url: str, body: str | None) -> Path:
@@ -143,9 +153,14 @@ class PoliteClient:
             return cached
         if self.offline:
             raise OfflineMiss(full_url)
-        if check_robots and self.respect_robots and not self.allowed(full_url):
-            raise RobotsDisallowed(full_url)
         host = urlsplit(full_url).netloc
+        if (
+            check_robots
+            and self.respect_robots
+            and host not in self._api_hosts
+            and not self.allowed(full_url)
+        ):
+            raise RobotsDisallowed(full_url)
         last_exc: Exception | None = None
         for attempt in range(5):
             self._throttle(host)

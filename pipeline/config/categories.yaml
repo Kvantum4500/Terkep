@@ -123,7 +123,6 @@ wikidata_classes:
   - {qid: Q16560,   label: palace,               cat: kastely}
   - {qid: Q23413,   label: castle,               cat: var}
   - {qid: Q1785071, label: fort,                 cat: var}
-  - {qid: Q57821,   label: fortification,        cat: var}
   - {qid: Q16970,   label: church building,      cat: templom}
   - {qid: Q44613,   label: monastery,            cat: templom}
   - {qid: Q34627,   label: synagogue,            cat: templom}

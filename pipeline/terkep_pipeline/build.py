@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import BUILD_DIR, DATA_DIR, config, records
-from .conflate import Conflator, build_poi, conflate
+from .conflate import Conflator, build_poi, conflate, merge_close_duplicates
 from .geo import PolygonIndex, in_hu_bbox
 from .models import Poi, SourceRecord
 from .score import assign_tiers
@@ -116,6 +116,8 @@ def run(
                 poi.county = expected
         pois.append(poi)
 
+    pois, merged = merge_close_duplicates(pois)
+    conf.report.deduped += merged
     pois = apply_overrides(pois, conf)
     assign_tiers(pois)
 

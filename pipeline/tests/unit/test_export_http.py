@@ -47,3 +47,61 @@ def test_http_cache_and_offline(tmp_path):
     assert offline.get("https://example.org/x").text == "szia"
     with pytest.raises(OfflineMiss):
         offline.get("https://example.org/nincs")
+
+
+class _Robots:
+    def can_fetch(self, ua, url):
+        return False
+
+
+class _FakeHttp:
+    def __init__(self):
+        self.calls = []
+
+    def request(self, method, url, **kw):
+        self.calls.append(url)
+
+        class R:
+            status_code = 200
+            text = "{}"
+            headers = {}
+
+        return R()
+
+
+def _client_with_robots_disallowing_everything(tmp_path):
+    c = PoliteClient(cache_dir=tmp_path, default_interval_s=0)
+    c.session = _FakeHttp()
+    c._robots = {"https://query.wikidata.org": _Robots(), "https://www.pelda.hu": _Robots()}
+    return c
+
+
+def test_api_hosts_skip_robots_but_sites_do_not(tmp_path):
+    from terkep_pipeline.http import RobotsDisallowed
+
+    c = _client_with_robots_disallowing_everything(tmp_path)
+    c.mark_api_host("query.wikidata.org")
+    # a hivatalos API-hívás nem nézi a robots.txt-t
+    assert c.post("https://query.wikidata.org/sparql", data={"query": "x"}).text == "{}"
+    assert c.session.calls == ["https://query.wikidata.org/sparql"]
+    # egy túraoldalnál viszont igen: hálózati hívás nélkül megáll
+    with pytest.raises(RobotsDisallowed):
+        c.get("https://www.pelda.hu/oldal")
+    assert len(c.session.calls) == 1
+
+
+def test_unmarked_host_still_respects_robots(tmp_path):
+    from terkep_pipeline.http import RobotsDisallowed
+
+    c = _client_with_robots_disallowing_everything(tmp_path)
+    with pytest.raises(RobotsDisallowed):
+        c.post("https://query.wikidata.org/sparql", data={"query": "x"})
+
+
+def test_cli_marks_wikimedia_api_hosts():
+    import argparse
+
+    from terkep_pipeline.cli import _client
+
+    c = _client(argparse.Namespace(offline=True))
+    assert {"query.wikidata.org", "hu.wikipedia.org", "commons.wikimedia.org"} <= c._api_hosts

@@ -177,3 +177,49 @@ def test_flags_from_extra():
     by = {p.name: p.flags for p in pois}
     assert by["Baradla-barlang"] & 8
     assert by["Jáki templom"] & 1
+
+
+def test_wikidata_duplicates_merge_within_source():
+    _, pois = run(
+        [
+            rec("osm", "n1", "Egri vár", *EGER, cat="var", wikidata="Q1"),
+            rec("wikidata", "Q1", "Egri vár", *EGER, cat="var", wikidata="Q1"),
+            # ugyanaz a hely egy másik (duplikált) Wikidata-elemmel
+            rec("wikidata", "Q2", "Egri vár", EGER[0] + 0.0001, EGER[1], cat="var", wikidata="Q2"),
+        ]
+    )
+    assert [p.id for p in pois] == ["Q1"]
+
+
+def test_final_merge_close_duplicates():
+    from terkep_pipeline.conflate import merge_close_duplicates
+    from terkep_pipeline.models import Poi
+
+    def poi(id_, cat, sources, dlat=0.0, **kw):
+        p = Poi(
+            id=id_,
+            name="Egri vár",
+            cat=cat,
+            lat=EGER[0] + dlat,
+            lon=EGER[1],
+            county="HE",
+            sources=sources,
+            **kw,
+        )
+        p.meta = {"sitelinks": 3, "sources": {s["s"] for s in sources}}
+        return p
+
+    pois = [
+        poi("Q1", "var", [{"s": "osm", "ref": "n1"}, {"s": "wikidata", "ref": "Q1"}]),
+        poi("Q2", "var", [{"s": "wikidata", "ref": "Q2"}], dlat=0.0001, desc="leírás"),
+        # azonos név, másik kategória: marad
+        poi("n3", "kilatopont", [{"s": "osm", "ref": "n3"}], dlat=0.0001),
+        # azonos név és kategória, de 200 m-re: marad
+        poi("Q4", "var", [{"s": "wikidata", "ref": "Q4"}], dlat=0.002),
+    ]
+    kept, merged = merge_close_duplicates(pois)
+    assert merged == 1
+    assert sorted(p.id for p in kept) == ["Q1", "Q4", "n3"]
+    q1 = next(p for p in kept if p.id == "Q1")
+    assert {s["ref"] for s in q1.sources} == {"n1", "Q1", "Q2"}
+    assert q1.desc == "leírás"

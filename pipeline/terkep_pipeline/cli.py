@@ -38,7 +38,9 @@ def _client(args) -> PoliteClient:
         if url:
             from urllib.parse import urlsplit
 
-            c.set_interval(urlsplit(url).netloc, float(cfg.get("min_interval_s", 1.0)))
+            host = urlsplit(url).netloc
+            c.set_interval(host, float(cfg.get("min_interval_s", 1.0)))
+            c.mark_api_host(host)
     return c
 
 
