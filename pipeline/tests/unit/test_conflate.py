@@ -223,3 +223,65 @@ def test_final_merge_close_duplicates():
     q1 = next(p for p in kept if p.id == "Q1")
     assert {s["ref"] for s in q1.sources} == {"n1", "Q1", "Q2"}
     assert q1.desc == "leírás"
+
+
+def test_same_qid_on_far_apart_osm_objects_gives_unique_ids():
+    """Valós adaton ez okozott ismétlődő azonosítót (pl. Q1092030)."""
+    from terkep_pipeline.conflate import ensure_unique_ids
+
+    conf, pois = run(
+        [
+            # hosszú híd két OSM-darabja ugyanazzal a QID-del, 1,5 km-re: egy pont
+            rec("osm", "w1", "Kőröshegyi völgyhíd", 46.835, 17.900, cat="hid", wikidata="Q7"),
+            rec("osm", "w2", "Kőröshegyi völgyhíd", 46.835, 17.920, cat="hid", wikidata="Q7"),
+            # ugyanaz a QID egy 30 km-re lévő, másik objektumon: címkézési hiba
+            rec("osm", "n3", "Valami kilátó", 47.100, 17.900, cat="kilato", wikidata="Q8"),
+            rec("osm", "n4", "Másik kilátó", 46.830, 17.900, cat="kilato", wikidata="Q8"),
+        ]
+    )
+    ids = [p.id for p in pois]
+    assert len(ids) == len(set(ids)), ids
+    assert sorted(ids) == ["Q7", "Q8", "n4"]
+    assert [c["forras"] for c in conf.report.qid_conflicts] == ["osm:n4"]
+    assert ensure_unique_ids(pois) == 0
+
+
+def test_ensure_unique_ids_safety_net():
+    from terkep_pipeline.conflate import ensure_unique_ids
+    from terkep_pipeline.models import Poi
+
+    a = Poi(
+        id="Q5",
+        name="A",
+        cat="var",
+        lat=47.0,
+        lon=19.0,
+        county="PE",
+        wikidata="Q5",
+        osm="w1",
+        sources=[{"s": "osm", "ref": "w1"}, {"s": "wikidata", "ref": "Q5"}],
+    )
+    b = Poi(
+        id="Q5",
+        name="B",
+        cat="var",
+        lat=47.5,
+        lon=19.0,
+        county="PE",
+        wikidata="Q5",
+        osm="n2",
+        sources=[{"s": "osm", "ref": "n2"}],
+    )
+    c = Poi(
+        id="Q5",
+        name="C",
+        cat="var",
+        lat=47.6,
+        lon=19.0,
+        county="PE",
+        wikidata="Q5",
+        sources=[{"s": "huwiki", "ref": "C"}],
+    )
+    assert ensure_unique_ids([a, b, c]) == 2
+    assert (a.id, b.id, c.id) == ("Q5", "n2", "huwiki:C")
+    assert a.wikidata == "Q5" and b.wikidata is None and c.wikidata is None

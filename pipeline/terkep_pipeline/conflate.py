@@ -54,6 +54,8 @@ RADII: dict[str, tuple[float, float, float | None]] = {
 }
 DEFAULT_RADII = (300.0, 150.0, None)
 DEDUPE_M = 50.0
+# Azonos QID-ű rekordok ezen a távolságon belül egy pontot jelentenek (hosszú híd, tó, völgy).
+SAME_QID_MAX_M = 5000.0
 STRONG = 0.85
 WEAK = 0.6
 AMBIGUOUS = 0.5
@@ -128,11 +130,17 @@ class Cluster:
 class Report:
     ambiguous: list[dict] = field(default_factory=list)
     unmatched: list[dict] = field(default_factory=list)
+    qid_conflicts: list[dict] = field(default_factory=list)
     deduped: int = 0
+    id_fixes: int = 0
 
     def write(self, out_dir: Path) -> None:
         out_dir.mkdir(parents=True, exist_ok=True)
-        for name, rows in (("ambiguous_matches.csv", self.ambiguous), ("unmatched.csv", self.unmatched)):
+        for name, rows in (
+            ("ambiguous_matches.csv", self.ambiguous),
+            ("unmatched.csv", self.unmatched),
+            ("qid_conflicts.csv", self.qid_conflicts),
+        ):
             with (out_dir / name).open("w", newline="", encoding="utf-8") as f:
                 if not rows:
                     f.write("")
@@ -178,12 +186,62 @@ def _match_class(rec: SourceRecord, cl: Cluster, sim: float, d: float) -> tuple[
     return None
 
 
+def _absorb(primary: SourceRecord, r: SourceRecord) -> None:
+    primary.flags |= r.flags
+    primary.extra.setdefault("dups", []).append(r.ref)
+    for k in ("huwiki", "image", "ele", "desc", "settlement"):
+        if getattr(primary, k) in (None, "") and getattr(r, k) not in (None, ""):
+            setattr(primary, k, getattr(r, k))
+    for k in ("heritage", "showcave"):
+        if r.extra.get(k):
+            primary.extra[k] = True
+
+
+def _merge_same_qid(recs: list[SourceRecord], report: Report) -> list[SourceRecord]:
+    """Egy forráson belül azonos QID-ű rekordok (pl. egy hosszú híd vagy tó több
+    OSM-darabja): SAME_QID_MAX_M-en belül egy rekord lesz belőlük; a távolabbiakról
+    levesszük a QID-et (valószínű címkézési hiba), különben két pont kapná
+    ugyanazt az azonosítót."""
+    groups: dict[str, list[SourceRecord]] = defaultdict(list)
+    for r in recs:
+        if r.wikidata:
+            groups[r.wikidata].append(r)
+    absorbed: set[int] = set()
+    for qid, group in groups.items():
+        if len(group) < 2:
+            continue
+        primary = group[0]
+        for r in group[1:]:
+            near = (
+                r.has_coords
+                and primary.has_coords
+                and distance_m(r.lat, r.lon, primary.lat, primary.lon) <= SAME_QID_MAX_M
+            )
+            if near:
+                _absorb(primary, r)
+                absorbed.add(id(r))
+                report.deduped += 1
+            else:
+                d = (
+                    distance_m(r.lat, r.lon, primary.lat, primary.lon)
+                    if r.has_coords and primary.has_coords
+                    else -1
+                )
+                r.extra["dropped_wikidata"] = qid
+                r.wikidata = None
+                report.qid_conflicts.append(
+                    {"forras": r.key, "nev": r.name, "qid": qid, "tavolsag_m": round(d)}
+                )
+    return [r for r in recs if id(r) not in absorbed]
+
+
 def _dedupe_within_source(records: list[SourceRecord], report: Report) -> list[SourceRecord]:
     by_source: dict[str, list[SourceRecord]] = defaultdict(list)
     for r in records:
         by_source[r.source].append(r)
     out: list[SourceRecord] = []
     for _source, recs in by_source.items():
+        recs = _merge_same_qid(recs, report)
         grid = GridIndex(cell_m=200)
         kept: list[SourceRecord] = []
         for r in recs:
@@ -299,13 +357,26 @@ class Conflator:
             cl = self.by_qid.get(rec.wikidata) if rec.wikidata else None
             if cl is not None and source not in cl.sources:
                 self._attach(rec, cl)
-            elif cl is not None and source == "osm":
-                # ugyanaz a wikidata-címke több OSM-objektumon (pl. pont + terület)
+            elif cl is not None:
+                # Ugyanaz a QID több rekordon ugyanabból a forrásból (pl. egy hosszú
+                # híd vagy tó több OSM-darabja, egy vár területe és pontja).
                 d = distance_m(rec.lat, rec.lon, cl.anchor.lat, cl.anchor.lon) if rec.has_coords else 0
-                if d <= RADII.get(rec.cat or "", DEFAULT_RADII)[0]:
+                if d <= SAME_QID_MAX_M:
                     cl.anchor.extra.setdefault("dups", []).append(rec.ref)
                     self.report.deduped += 1
                 else:
+                    # messze van: valószínű címkézési hiba -> QID nélkül megy tovább,
+                    # különben két pont kapná ugyanazt az azonosítót
+                    rec.extra["dropped_wikidata"] = rec.wikidata
+                    rec.wikidata = None
+                    self.report.qid_conflicts.append(
+                        {
+                            "forras": rec.key,
+                            "nev": rec.name,
+                            "qid": rec.extra["dropped_wikidata"],
+                            "tavolsag_m": round(d),
+                        }
+                    )
                     pending.append(rec)
             else:
                 pending.append(rec)
@@ -354,10 +425,8 @@ class Conflator:
 
 
 def conflate(records: list[SourceRecord], source_order: list[str], source_cfgs: dict[str, dict]) -> Conflator:
-    report = Report()
-    records = _dedupe_within_source(records, report)
     conf = Conflator(source_cfgs)
-    conf.report.deduped = report.deduped
+    records = _dedupe_within_source(records, conf.report)
     by_source: dict[str, list[SourceRecord]] = defaultdict(list)
     for r in records:
         by_source[r.source].append(r)
@@ -506,3 +575,29 @@ def merge_close_duplicates(pois: list[Poi]) -> tuple[list[Poi], int]:
         target.meta["sources"] = set(target.meta.get("sources", set())) | set(p.meta.get("sources", set()))
         target.meta["showcave"] = target.meta.get("showcave") or p.meta.get("showcave")
     return kept, merged
+
+
+def ensure_unique_ids(pois: list[Poi]) -> int:
+    """Biztonsági háló: ha két pont mégis ugyanazt az azonosítót kapná, a több
+    forrású marad, a többi az OSM-azonosítóját (vagy <forrás>:<ref>) kapja, és
+    lekerül róla a QID. Visszaadja a javított pontok számát."""
+    groups: dict[str, list[Poi]] = defaultdict(list)
+    for p in pois:
+        groups[p.id].append(p)
+    taken = set(groups)
+    fixed = 0
+    for pid, group in groups.items():
+        if len(group) < 2:
+            continue
+        group.sort(key=lambda p: (-len(p.sources), p.osm or "", p.name))
+        for k, p in enumerate(group[1:], start=2):
+            candidates = [p.osm] if p.osm else []
+            candidates += [f"{s['s']}:{s['ref']}" for s in p.sources if s["s"] not in ("osm", "wikidata")]
+            new_id = next((c for c in candidates if c and c not in taken), None) or f"dup:{pid}-{k}"
+            if p.wikidata == pid:
+                p.wikidata = None
+                p.sources = [s for s in p.sources if not (s["s"] == "wikidata" and s["ref"] == pid)]
+            p.id = new_id
+            taken.add(new_id)
+            fixed += 1
+    return fixed

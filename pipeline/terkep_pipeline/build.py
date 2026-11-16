@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import BUILD_DIR, DATA_DIR, config, records
-from .conflate import Conflator, build_poi, conflate, merge_close_duplicates
+from .conflate import Conflator, build_poi, conflate, ensure_unique_ids, merge_close_duplicates
 from .geo import PolygonIndex, in_hu_bbox
 from .models import Poi, SourceRecord
 from .score import assign_tiers
@@ -119,6 +119,7 @@ def run(
     pois, merged = merge_close_duplicates(pois)
     conf.report.deduped += merged
     pois = apply_overrides(pois, conf)
+    conf.report.id_fixes = ensure_unique_ids(pois)
     assign_tiers(pois)
 
     if out_dir is not None:
@@ -178,6 +179,8 @@ def write_reports(
         "",
         f"- Bizonytalan párosítás: {len(conf.report.ambiguous)} (ambiguous_matches.csv)",
         f"- Párosítatlan megerősítő rekord: {len(conf.report.unmatched)} (unmatched.csv)",
+        f"- Távoli rekord azonos QID-del (QID levéve): {len(conf.report.qid_conflicts)} (qid_conflicts.csv)",
+        f"- Azonosító-ütközés javítva: {conf.report.id_fixes}",
         f"- Elvetett pont: {len(dropped)} (dropped.csv)",
         f"- Eltérő vármegye a vártnál: {len(mismatch)} (county_mismatch.csv)",
     ]
