@@ -89,6 +89,9 @@ osm_rules:
   - {cat: hid, when: {bridge: [viaduct, aqueduct], "bridge:name": "*"}, require: [notable], sub: viadukt}
   # --- Kilátók ------------------------------------------------------------
   - {cat: kilato, when: {man_made: tower, "tower:type": observation}}
+  # kilátó-épület: building=tower + tower:type=observation (pl. az Erzsébet-kilátó)
+  - {cat: kilato, when: {"tower:type": observation}}
+  - {cat: kilato, when: {building: tower}, name: "kilátó(?!pont)|kilátótorony"}
   - {cat: kilato, when: {tourism: viewpoint, man_made: tower}}
   - {cat: kilato, when: {tourism: viewpoint}, name: "kilátó(?!pont)|kilátótorony"}
   - {cat: kilatopont, when: {tourism: viewpoint}}

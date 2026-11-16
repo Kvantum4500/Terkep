@@ -185,10 +185,23 @@ def check_golden(data_dir: Path) -> list[str]:
             and all(m in fold(f"{r['name']} {r.get('settlement', '')}") for m in g["match"])
         ]
         if not hits:
-            failures.append(f"hiányzik: {g}")
+            failures.append(f"hiányzik: {g}" + _explain_missing(g))
         elif not any(r["tier"] <= g.get("max_tier", 1) for r in hits):
             failures.append(f"nem kiemelt: {g} -> {[(r['name'], r['cat'], r['tier']) for r in hits][:5]}")
     return failures
+
+
+def _explain_missing(g: dict) -> str:
+    """Diagnosztika a riportba: a hiányzó aranylista-tétel nevére illeszkedő nyers
+    forrásrekordok (ha a pipeline/build/records elérhető, pl. az adatfrissítésben)."""
+    found = []
+    for src in records.available():
+        for r in records.load(src):
+            if all(m in fold(f"{r.name} {r.settlement or ''}") for m in g["match"]):
+                found.append(f"{r.key} kat={r.cat} qid={r.wikidata or '-'} ({r.lat}, {r.lon})")
+    if not found:
+        return " | egyik forrásban sincs ilyen nevű rekord (besorolás vagy szűrés hiányzik?)"
+    return " | nyers rekordok: " + "; ".join(found[:8])
 
 
 def cmd_golden(args) -> int:
