@@ -130,7 +130,11 @@ def categorize_wikidata(
     roots = config.categories()["wikidata_classes"]
     order = {r["qid"]: i for i, r in enumerate(roots)}
     cat_of = {r["qid"]: r["cat"] for r in roots}
-    hits = sorted({class_to_root[c] for c in instance_of if c in class_to_root}, key=lambda q: order[q])
+    # csak a konfigurációban (még) szereplő gyökerek számítanak (régi térkép ellen)
+    hits = sorted(
+        {class_to_root[c] for c in instance_of if c in class_to_root and class_to_root[c] in order},
+        key=lambda q: order[q],
+    )
     if not hits:
         return None
     cat = cat_of[hits[0]]

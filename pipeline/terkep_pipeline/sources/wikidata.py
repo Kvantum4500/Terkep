@@ -11,9 +11,11 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 from collections.abc import Iterable
+from pathlib import Path
 from urllib.parse import unquote
 
 from .. import BUILD_DIR, config
@@ -51,10 +53,29 @@ def _chunks(items: list, n: int) -> Iterable[list]:
         yield items[i : i + n]
 
 
-def class_map(client: PoliteClient, refresh: bool = False) -> dict[str, str]:
-    """osztály QID -> gyökér QID (a categories.yaml sorrendjében az első nyer)."""
-    if CLASS_MAP_PATH.exists() and not refresh:
-        return json.loads(CLASS_MAP_PATH.read_text(encoding="utf-8"))
+def _roots_fingerprint() -> str:
+    """A gyökérosztály-lista és a kizárások ujjlenyomata: ha a categories.yaml
+    változik, a gyorsítótárazott osztálytérkép érvénytelen."""
+    cats = config.categories()
+    key = {
+        "roots": [r["qid"] for r in cats["wikidata_classes"]],
+        "exclude": sorted(cats.get("wikidata_exclude") or []),
+    }
+    return hashlib.sha256(json.dumps(key, sort_keys=True).encode()).hexdigest()[:16]
+
+
+def class_map(client: PoliteClient, refresh: bool = False, path: Path | None = None) -> dict[str, str]:
+    """osztály QID -> gyökér QID (a categories.yaml sorrendjében az első nyer).
+
+    A térkép gyorsítótárazva van (a CI-ben is); ha a gyökérlista azóta
+    megváltozott (vagy régi formátumú a fájl), újratöltjük."""
+    path = path or CLASS_MAP_PATH
+    fingerprint = _roots_fingerprint()
+    if path.exists() and not refresh:
+        cached = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(cached, dict) and cached.get("fingerprint") == fingerprint:
+            return cached["map"]
+        log.info("A Wikidata-osztálytérkép elavult (a gyökérlista változott), újratöltöm.")
     roots = config.categories()["wikidata_classes"]
     exclude = set(config.categories().get("wikidata_exclude") or [])
     mapping: dict[str, str] = {}
@@ -65,8 +86,10 @@ def class_map(client: PoliteClient, refresh: bool = False) -> dict[str, str]:
         for s in subs:
             if s not in exclude:
                 mapping.setdefault(s, root["qid"])
-    CLASS_MAP_PATH.parent.mkdir(parents=True, exist_ok=True)
-    CLASS_MAP_PATH.write_text(json.dumps(mapping, indent=0, sort_keys=True), encoding="utf-8")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps({"fingerprint": fingerprint, "map": mapping}, indent=0, sort_keys=True), encoding="utf-8"
+    )
     return mapping
 
 

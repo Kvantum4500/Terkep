@@ -41,3 +41,45 @@ def test_rows_to_records():
     assert r.sitelinks == 25 and r.ele == 200 and r.settlement == "Eger"
     assert r.extra["heritage"] is True and r.flags & 1
     assert recs[1].coord_quality == "none" and recs[1].cat is None
+
+
+def test_categorize_ignores_roots_removed_from_config():
+    from terkep_pipeline.categorize import categorize_wikidata
+
+    # régi térkép: a Q181623 egykor gyökér volt, azóta kikerült a configból
+    stale = {"Q181623": "Q181623", "Q23413": "Q23413"}
+    assert categorize_wikidata(["Q181623"], stale, "Valami") is None
+    assert categorize_wikidata(["Q181623", "Q23413"], stale, "Egri vár") == "var"
+
+
+class _FakeSparql:
+    def __init__(self):
+        self.queries = 0
+
+    def post(self, url, data, headers=None, timeout=None):
+        from terkep_pipeline.http import Response
+
+        self.queries += 1
+        qid = data["query"].split("wd:")[1].split(" ")[0]
+        body = {"results": {"bindings": [{"s": {"type": "uri", "value": E + qid}}]}}
+        import json as _json
+
+        return Response(url, 200, _json.dumps(body), {})
+
+
+def test_class_map_refreshes_when_roots_change(tmp_path):
+    import json as _json
+
+    from terkep_pipeline import config
+    from terkep_pipeline.sources.wikidata import class_map
+
+    path = tmp_path / "classes.json"
+    # régi formátum (fingerprint nélkül) -> újratöltés
+    path.write_text(_json.dumps({"Q181623": "Q181623"}))
+    c = _FakeSparql()
+    m = class_map(c, path=path)
+    n_roots = len(config.categories()["wikidata_classes"])
+    assert c.queries == n_roots and "Q181623" not in m
+    # aktuális ujjlenyomattal: nincs újabb lekérdezés
+    c2 = _FakeSparql()
+    assert class_map(c2, path=path) == m and c2.queries == 0
