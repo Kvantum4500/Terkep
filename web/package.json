@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Magyarorsz\u00e1g l\u00e1tnival\u00f3i \u2013 sz\u0171rhet\u0151 t\u00e9rk\u00e9p (PWA)",
+  "description": "Magyarország látnivalói – szűrhető térkép (PWA)",
   "scripts": {
     "data": "node scripts/build-data.ts",
     "dev": "npm run data && vite",
@@ -15,7 +15,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "mapillary-js": "^4.1.2",
     "maplibre-gl": "^6.18.0",
+    "pannellum": "^2.5.7",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "workbox-window": "^7.4.1",

@@ -36,6 +36,8 @@ export default defineConfig({
       workbox: {
         // az app, az adatok és a betűk előre gyorsítótárba kerülnek -> túrán offline is megy
         globPatterns: ['**/*.{js,mjs,css,html,svg,png,ico,json,geojson,pbf}'],
+        // a 360°-os nézegetők csak hálózattal működnek -> nem töltjük le őket előre
+        globIgnores: ['**/pannellumViewer-*', '**/mapillaryViewer-*'],
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
         navigateFallback: 'index.html',
         cleanupOutdatedCaches: true,
@@ -52,7 +54,15 @@ export default defineConfig({
             },
           },
           {
-            urlPattern: ({ url }) => url.hostname === 'commons.wikimedia.org' || url.hostname === 'upload.wikimedia.org',
+            // műholdkép (Esri): a feltételek miatt nem tároljuk el
+            urlPattern: ({ url }) => url.hostname === 'server.arcgisonline.com',
+            handler: 'NetworkOnly',
+          },
+          {
+            // fotók (a Commons API-hívások nem: azok mindig frissek legyenek)
+            urlPattern: ({ url }) =>
+              (url.hostname === 'commons.wikimedia.org' && !url.pathname.startsWith('/w/api.php')) ||
+              url.hostname === 'upload.wikimedia.org',
             handler: 'CacheFirst',
             options: {
               cacheName: 'photos',

@@ -1,14 +1,18 @@
 // A MapLibre-térkép imperatív vezérlője. A React-komponens csak létrehozza és
-// adatot ad neki; a későbbi rétegek (útvonaltervező, nyomvonal) ide kerülnek.
+// adatot ad neki (látnivalók, kiválasztás, útvonal).
 
 import {
   type GeoJSONSource,
   GeolocateControl,
   LngLatBounds,
   type LngLatBoundsLike,
-  Map as MlMap,
+  type MapGeoJSONFeature,
   type MapLayerMouseEvent,
+  Map as MlMap,
+  type MapMouseEvent,
+  type MapTouchEvent,
   NavigationControl,
+  Popup,
   ScaleControl,
   setWorkerUrl,
   type StyleSpecification,
@@ -18,6 +22,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 // a service worker pedig előre gyorsítótárazza (offline működés).
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
 import type { Meta, PoiIndex } from '../data/types'
+import type { Role, RouteAlt } from '../route/types'
 import type { Basemap } from '../state/store'
 import { addCategoryIcons } from './icons'
 
@@ -30,8 +35,11 @@ export const HUNGARY_BOUNDS: LngLatBoundsLike = [
 
 const POI_LAYERS = ['poi-t1', 'poi-t2', 'poi-t3', 'poi-dots']
 const FEW_POIS = 400
+const LONG_PRESS_MS = 550
 
 const ATTR_OSM = '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> közreműködők'
+const ATTR_ESRI = 'Műhold: © Esri, Maxar, Earthstar Geographics, GIS User Community'
+const EMPTY: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] }
 
 function style(glyphs: string): StyleSpecification {
   return {
@@ -52,6 +60,21 @@ function style(glyphs: string): StyleSpecification {
         maxzoom: 19,
         attribution: ATTR_OSM,
       },
+      sat: {
+        type: 'raster',
+        tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+        tileSize: 256,
+        maxzoom: 19,
+        attribution: ATTR_ESRI,
+      },
+      'sat-labels': {
+        type: 'raster',
+        tiles: [
+          'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+        ],
+        tileSize: 256,
+        maxzoom: 19,
+      },
       trails: {
         type: 'raster',
         tiles: ['https://tile.waymarkedtrails.org/hiking/{z}/{x}/{y}.png'],
@@ -59,14 +82,18 @@ function style(glyphs: string): StyleSpecification {
         maxzoom: 18,
         attribution: 'Turistautak: © <a href="https://hiking.waymarkedtrails.org">Waymarked Trails</a> (CC BY-SA)',
       },
-      counties: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
-      pois: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
-      selected: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
+      counties: { type: 'geojson', data: EMPTY },
+      pois: { type: 'geojson', data: EMPTY },
+      selected: { type: 'geojson', data: EMPTY },
+      route: { type: 'geojson', data: EMPTY },
+      'route-pts': { type: 'geojson', data: EMPTY },
     },
     layers: [
       { id: 'bg', type: 'background', paint: { 'background-color': '#eef0e8' } },
       { id: 'topo', type: 'raster', source: 'topo', layout: { visibility: 'none' } },
       { id: 'osm', type: 'raster', source: 'osm', layout: { visibility: 'none' } },
+      { id: 'sat', type: 'raster', source: 'sat', layout: { visibility: 'none' } },
+      { id: 'sat-labels', type: 'raster', source: 'sat-labels', layout: { visibility: 'none' } },
       { id: 'trails', type: 'raster', source: 'trails', layout: { visibility: 'none' }, paint: { 'raster-opacity': 0.85 } },
       {
         id: 'county-fill',
@@ -89,6 +116,30 @@ function style(glyphs: string): StyleSpecification {
         },
       },
       {
+        id: 'route-alt',
+        type: 'line',
+        source: 'route',
+        filter: ['!', ['get', 'active']],
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: { 'line-color': '#64748b', 'line-width': 5, 'line-opacity': 0.75 },
+      },
+      {
+        id: 'route-casing',
+        type: 'line',
+        source: 'route',
+        filter: ['get', 'active'],
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: { 'line-color': '#ffffff', 'line-width': 9 },
+      },
+      {
+        id: 'route-line',
+        type: 'line',
+        source: 'route',
+        filter: ['get', 'active'],
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: { 'line-color': '#2563eb', 'line-width': 5.5 },
+      },
+      {
         id: 'poi-dots',
         type: 'circle',
         source: 'pois',
@@ -102,6 +153,30 @@ function style(glyphs: string): StyleSpecification {
       symbolLayer('poi-t3', 3, 12, 14, 0.72),
       symbolLayer('poi-t2', 2, 9, 11.5, 0.86),
       symbolLayer('poi-t1', 1, 0, 8, 1),
+      {
+        id: 'route-pt-circle',
+        type: 'circle',
+        source: 'route-pts',
+        paint: {
+          'circle-radius': 11,
+          'circle-color': ['get', 'color'],
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-width': 2.5,
+        },
+      },
+      {
+        id: 'route-pt-label',
+        type: 'symbol',
+        source: 'route-pts',
+        layout: {
+          'text-field': ['get', 'label'],
+          'text-font': ['Noto Sans Medium'],
+          'text-size': 12,
+          'text-allow-overlap': true,
+          'text-ignore-placement': true,
+        },
+        paint: { 'text-color': '#ffffff' },
+      },
       {
         id: 'selected-ring',
         type: 'circle',
@@ -147,9 +222,16 @@ function symbolLayer(
     paint: {
       'text-color': '#1f2937',
       'text-halo-color': '#ffffff',
-      'text-halo-width': 1.6,
+      'text-halo-width': 1.8,
     },
   }
+}
+
+export interface MapPoint {
+  lat: number
+  lon: number
+  /** ha egy látnivalóra koppintott */
+  poiId?: string
 }
 
 export interface MapControllerOptions {
@@ -158,7 +240,21 @@ export interface MapControllerOptions {
   basemap: Basemap
   trails: boolean
   onSelect: (id: string | null) => void
+  /** térképről választás (útvonalpont) */
+  onPick?: (p: MapPoint) => void
+  /** hosszú nyomás / jobb klikk menüjéből választott útvonalpont */
+  onMapPoint?: (role: Role, p: MapPoint) => void
+  onSelectAlt?: (i: number) => void
 }
+
+export interface RoutePointMarker {
+  lat: number
+  lon: number
+  label: string
+  role: Role
+}
+
+const ROLE_COLOR: Record<Role, string> = { start: '#15803d', via: '#2563eb', end: '#b91c1c' }
 
 export class MapController {
   readonly map: MlMap
@@ -166,8 +262,14 @@ export class MapController {
   private ready: Promise<void>
   private isReady = false
   private activeCounties = new Set<string>()
+  private pickMode = false
+  private popup: Popup | null = null
+  private resizeObs: ResizeObserver | null = null
+  private pressTimer: ReturnType<typeof setTimeout> | null = null
+  private opts: MapControllerOptions
 
   constructor(opts: MapControllerOptions) {
+    this.opts = opts
     this.meta = opts.meta
     const base = import.meta.env.BASE_URL
     const glyphs = new URL(`${base}fonts/{fontstack}/{range}.pbf`, window.location.href).href
@@ -177,7 +279,7 @@ export class MapController {
       container: opts.container,
       style: style(glyphs),
       bounds: HUNGARY_BOUNDS,
-      fitBoundsOptions: { padding: mapPadding() },
+      fitBoundsOptions: { padding: 16 },
       maxBounds: [
         [13.5, 44.5],
         [25.5, 49.9],
@@ -216,16 +318,102 @@ export class MapController {
 
     for (const layer of POI_LAYERS) {
       this.map.on('click', layer, (e: MapLayerMouseEvent) => {
+        if (this.pickMode) return // a térképkattintás kezeli
         const f = e.features?.[0]
         if (f) opts.onSelect(String(f.properties.id))
       })
-      this.map.on('mouseenter', layer, () => (this.map.getCanvas().style.cursor = 'pointer'))
-      this.map.on('mouseleave', layer, () => (this.map.getCanvas().style.cursor = ''))
+      this.map.on('mouseenter', layer, () => {
+        if (!this.pickMode) this.map.getCanvas().style.cursor = 'pointer'
+      })
+      this.map.on('mouseleave', layer, () => {
+        if (!this.pickMode) this.map.getCanvas().style.cursor = ''
+      })
     }
+    this.map.on('click', 'route-alt', (e: MapLayerMouseEvent) => {
+      if (this.pickMode) return
+      const f = e.features?.[0]
+      if (f) opts.onSelectAlt?.(Number(f.properties.i))
+    })
+    this.map.on('click', (e: MapMouseEvent) => {
+      if (!this.pickMode) return
+      opts.onPick?.(this.pointAt(e))
+    })
+
+    // hosszú nyomás (érintés) és jobb klikk: útvonalpont-menü
+    this.map.on('contextmenu', (e: MapMouseEvent) => this.openPointMenu(e))
+    this.map.on('touchstart', (e: MapTouchEvent) => {
+      this.cancelPress()
+      if (e.originalEvent.touches.length !== 1) return
+      const start = e.point
+      this.pressTimer = setTimeout(() => {
+        this.pressTimer = null
+        this.openPointMenu(e)
+      }, LONG_PRESS_MS)
+      const move = (m: MapTouchEvent) => {
+        if (Math.hypot(m.point.x - start.x, m.point.y - start.y) > 10) this.cancelPress()
+      }
+      this.map.once('touchmove', move)
+    })
+    this.map.on('touchend', () => this.cancelPress())
+    this.map.on('movestart', () => this.cancelPress())
+
+    // a térkép mindig a ténylegesen rendelkezésre álló területet tölti ki
+    let raf = 0
+    this.resizeObs = new ResizeObserver(() => {
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => this.map.resize())
+    })
+    this.resizeObs.observe(opts.container)
   }
 
   whenReady(): Promise<void> {
     return this.ready
+  }
+
+  private cancelPress(): void {
+    if (this.pressTimer) clearTimeout(this.pressTimer)
+    this.pressTimer = null
+  }
+
+  private pointAt(e: MapMouseEvent | MapTouchEvent): MapPoint {
+    const feats: MapGeoJSONFeature[] = this.map.queryRenderedFeatures(e.point, {
+      layers: POI_LAYERS.filter((l) => this.map.getLayer(l)),
+    })
+    const f = feats[0]
+    if (f && f.geometry.type === 'Point') {
+      const [lon, lat] = f.geometry.coordinates
+      return { lat, lon, poiId: String(f.properties.id) }
+    }
+    return { lat: e.lngLat.lat, lon: e.lngLat.lng }
+  }
+
+  private openPointMenu(e: MapMouseEvent | MapTouchEvent): void {
+    if (!this.opts.onMapPoint) return
+    const p = this.pointAt(e)
+    this.popup?.remove()
+    const el = document.createElement('div')
+    el.className = 'point-menu'
+    el.setAttribute('data-testid', 'point-menu')
+    const items: [Role, string][] = [
+      ['start', 'Indulás innen'],
+      ['via', 'Útba ejtem'],
+      ['end', 'Útvonal ide'],
+    ]
+    for (const [role, label] of items) {
+      const b = document.createElement('button')
+      b.type = 'button'
+      b.textContent = label
+      b.setAttribute('data-testid', `ctx-${role}`)
+      b.addEventListener('click', () => {
+        this.popup?.remove()
+        this.opts.onMapPoint?.(role, p)
+      })
+      el.appendChild(b)
+    }
+    this.popup = new Popup({ closeButton: true, closeOnClick: true, offset: 8, maxWidth: '220px' })
+      .setLngLat([p.lon, p.lat])
+      .setDOMContent(el)
+      .addTo(this.map)
   }
 
   async setCounties(fc: GeoJSON.FeatureCollection): Promise<void> {
@@ -247,13 +435,20 @@ export class MapController {
     }
   }
 
+  /** A térkép széleitől hagyott hely; a jobb oldalon a nagyítógombok vannak. */
+  private padding() {
+    const c = this.map.getContainer()
+    const p = Math.round(Math.max(8, Math.min(40, c.clientWidth * 0.06, c.clientHeight * 0.06)))
+    return { top: p, bottom: p, left: p, right: p + (c.clientWidth > 320 ? 40 : 0) }
+  }
+
   async setActiveCounties(codes: string[], fc: GeoJSON.FeatureCollection, fit: boolean): Promise<void> {
     await this.ready
     this.activeCounties = new Set(codes)
     this.applyCountyState()
     if (!fit) return
     if (codes.length === 0) {
-      this.map.fitBounds(HUNGARY_BOUNDS, { padding: mapPadding(), duration: 600 })
+      this.map.fitBounds(HUNGARY_BOUNDS, { padding: this.padding(), duration: 600 })
       return
     }
     const b = new LngLatBounds()
@@ -261,7 +456,7 @@ export class MapController {
       if (!codes.includes(String(f.properties?.code))) continue
       walkCoords(f.geometry, (lon, lat) => b.extend([lon, lat]))
     }
-    if (!b.isEmpty()) this.map.fitBounds(b, { padding: mapPadding(), duration: 600, maxZoom: 11 })
+    if (!b.isEmpty()) this.map.fitBounds(b, { padding: this.padding(), duration: 600, maxZoom: 11 })
   }
 
   async setPois(index: PoiIndex, indices: Uint32Array): Promise<void> {
@@ -297,17 +492,50 @@ export class MapController {
     const src = this.map.getSource('selected') as GeoJSONSource
     const i = id ? index.byId.get(id) : undefined
     if (i === undefined) {
-      src.setData({ type: 'FeatureCollection', features: [] })
+      src.setData(EMPTY)
       return
     }
     const coords: [number, number] = [index.lon[i], index.lat[i]]
     src.setData({ type: 'Feature', geometry: { type: 'Point', coordinates: coords }, properties: {} })
-    if (fly) {
-      // az eltolás (offset) nem marad meg a kamerán, ellentétben a paddinggel
-      const p = mapPadding()
-      const offset: [number, number] = [(p.left - p.right) / 2, (p.top - p.bottom) / 2]
-      this.map.flyTo({ center: coords, zoom: Math.max(this.map.getZoom(), 12.5), duration: 800, offset })
-    }
+    // a térkép már csak a látható területet foglalja el -> egyszerűen középre visszük
+    if (fly) this.map.flyTo({ center: coords, zoom: Math.max(this.map.getZoom(), 12.5), duration: 800 })
+  }
+
+  async setRoute(alts: RouteAlt[], active: number): Promise<void> {
+    await this.ready
+    const features: GeoJSON.Feature<GeoJSON.LineString>[] = alts.map((a, i) => ({
+      type: 'Feature',
+      geometry: { type: 'LineString', coordinates: a.coords },
+      properties: { i, active: i === active },
+    }))
+    // az aktív legyen legfelül (a szürke változatok alatta)
+    features.sort((a, b) => Number(a.properties?.active) - Number(b.properties?.active))
+    ;(this.map.getSource('route') as GeoJSONSource).setData({ type: 'FeatureCollection', features })
+  }
+
+  async setRoutePoints(points: RoutePointMarker[]): Promise<void> {
+    await this.ready
+    ;(this.map.getSource('route-pts') as GeoJSONSource).setData({
+      type: 'FeatureCollection',
+      features: points.map((p) => ({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [p.lon, p.lat] },
+        properties: { label: p.label, color: ROLE_COLOR[p.role] },
+      })),
+    })
+  }
+
+  async fitRoute(coords: [number, number][]): Promise<void> {
+    await this.ready
+    if (coords.length < 2) return
+    const b = new LngLatBounds()
+    for (const c of coords) b.extend(c)
+    this.map.fitBounds(b, { padding: this.padding(), duration: 700, maxZoom: 15 })
+  }
+
+  setPickMode(on: boolean): void {
+    this.pickMode = on
+    this.map.getCanvas().style.cursor = on ? 'crosshair' : ''
   }
 
   setBasemap(b: Basemap): void {
@@ -315,8 +543,11 @@ export class MapController {
       void this.ready.then(() => this.setBasemap(b))
       return
     }
-    this.map.setLayoutProperty('topo', 'visibility', b === 'topo' ? 'visible' : 'none')
-    this.map.setLayoutProperty('osm', 'visibility', b === 'osm' ? 'visible' : 'none')
+    const vis = (on: boolean) => (on ? 'visible' : 'none')
+    this.map.setLayoutProperty('topo', 'visibility', vis(b === 'topo'))
+    this.map.setLayoutProperty('osm', 'visibility', vis(b === 'osm'))
+    this.map.setLayoutProperty('sat', 'visibility', vis(b === 'sat'))
+    this.map.setLayoutProperty('sat-labels', 'visibility', vis(b === 'sat'))
   }
 
   setTrails(on: boolean): void {
@@ -332,15 +563,11 @@ export class MapController {
   }
 
   destroy(): void {
+    this.cancelPress()
+    this.resizeObs?.disconnect()
+    this.popup?.remove()
     this.map.remove()
   }
-}
-
-/** A panel által takart sáv (asztalon bal oldali panel, mobilon az alsó panel). */
-function mapPadding() {
-  return window.innerWidth >= 900
-    ? { top: 30, bottom: 30, left: 420, right: 60 }
-    : { top: 20, bottom: 150, left: 16, right: 16 }
 }
 
 function walkCoords(g: GeoJSON.Geometry, fn: (lon: number, lat: number) => void): void {

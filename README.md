@@ -5,19 +5,32 @@ Várak, kastélyok, templomok, hidak, romok, hegycsúcsok, barlangok, sziklák
 **vármegyénként**, szabadon kombinálható szűrőkkel: „csak várak”, „csak Pest
 vármegye”, „Pest vármegye templomai”, „látogatható barlangok Borsodban”…
 
-Ez egy készülő magyar túra-app **első lépése**. A későbbi lépések: útvonaltervező
-(ösvények, földutak, kerékpárutak előnyben), saját teljesítmény mentése, GPS és
+Ez egy készülő magyar túra-app. A későbbi lépések: saját teljesítmény mentése, GPS és
 egészségadatok (Samsung Health / Health Connect), AI-asszisztens.
 
+- **A térképet semmi nem takarja:** telefonon álló helyzetben a panel a térkép alatt van
+  (húzható, a térkép mindig legalább 40%), fekvő helyzetben és asztalon mellette
+  (asztalon elrejthető).
+- **Alaptérképek:** turistatérkép (OpenTopoMap), utcatérkép (OSM), **műhold** (Esri),
+  jelzett turistautak rétege (Waymarked Trails).
+- **Útvonaltervezés az appban:** túra (ösvények, földutak előnyben), kerékpár, autó;
+  köztes pontok, legfeljebb 3 változat táv/idő/szintemelkedés adatokkal, **látnivalók az
+  út mentén**, útleírás, **GPX-letöltés**. Pont a kártyáról („Útvonal ide”, „Útba ejtem”)
+  vagy a térképről (hosszú nyomás / jobb klikk). Motor: Valhalla, tartalék: OSRM
+  (FOSSGIS, OpenStreetMap-adat); az útvonal csak a készüléken marad.
+- **360°-os körkép:** kiemelt helyeknél magától keres nyílt gömbpanorámát (Wikimedia
+  Commons) és – ha be van állítva – Mapillary-utcaképet; a „Google utcakép” link mindig ott
+  van (a Google Térkép appban nyílik meg).
+- **Vissza gomb:** Androidon a kártyát és az útvonal-nézetet zárja be, nem lép ki az appból.
 - **Telepíthető app (PWA):** Androidon (Samsung Internet / Chrome: „Hozzáadás a
   kezdőképernyőhöz”) és Windowson (Edge / Chrome: „Alkalmazás telepítése”) is
   ikonnal indul, és **offline is működik** (az adatok a készüléken vannak).
 - **Megosztható szűrők:** a szűrők a link végén vannak, pl.
   `…/Terkep/#m=PE&k=templom`.
 
-> **Jelenlegi állapot:** az app egy kézzel összeállított **mintaadattal** fut
-> (132 ismert látnivaló mind a 20 vármegyéből, közelítő helyekkel). A teljes
-> adatbázist az **Adatfrissítés** workflow tölti le (lásd lent).
+> **Jelenlegi állapot:** az élő app a valós adatbázissal fut (22 115 látnivaló, az
+> **Adatfrissítés** workflow tölti le, lásd lent). A tesztek a kézzel összeállított
+> mintaadaton (`data/sample/`, 132 ismert látnivaló) futnak.
 
 ## Teendők a repó gazdájának
 
@@ -27,7 +40,12 @@ egészségadatok (Samsung Health / Health Connect), AI-asszisztens.
    `https://kvantum4500.github.io/Terkep/`
 3. **Adatfrissítés engedélyezése:** Settings → Actions → General → „Allow GitHub
    Actions to create and approve pull requests”.
-4. **Valós adat:** Actions → *Adatfrissítés* → Run workflow. Kb. 1–2 óra; a végén PR
+4. **Mapillary-utcaképek (nem kötelező):** regisztráció a mapillary.com-on → Dashboard →
+   Developers → Register application → a „Client Token” bemásolása ide: Settings → Secrets
+   and variables → Actions → **Variables** → New repository variable, név:
+   `MAPILLARY_TOKEN`. Ez nyilvános, böngészőbe szánt token; nélküle a Commons-körképek és a
+   Google-utcakép link működik.
+5. **Valós adat:** Actions → *Adatfrissítés* → Run workflow. Kb. 1–2 óra; a végén PR
    nyílik a friss `data/` könyvtárral és egy riporttal (vármegyénkénti top 15,
    bizonytalan párosítások). A túraoldalak felderítési riportja az artifactok között van.
 

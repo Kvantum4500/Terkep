@@ -58,6 +58,15 @@ export function About() {
         </li>
         <li>Vármegyehatárok: {meta.boundaries}</li>
         <li>Alaptérkép: OpenTopoMap (CC BY-SA), OpenStreetMap; turistautak: Waymarked Trails (CC BY-SA)</li>
+        <li>Műholdkép: Esri World Imagery (© Esri, Maxar, Earthstar Geographics, GIS User Community)</li>
+        <li>
+          Útvonaltervezés: Valhalla és OSRM a FOSSGIS e.V. szerverein (openstreetmap.de), OpenStreetMap-adatokból. A
+          tervezett útvonal csak ezen a készüléken marad.
+        </li>
+        <li>
+          360°-os körképek: Wikimedia Commons (a szerzők licencével), Mapillary (CC BY-SA 4.0); nézegetők: Pannellum,
+          MapillaryJS (MIT)
+        </li>
         <li>Ikonok: Maki (CC0); betűtípus: Noto Sans (SIL OFL)</li>
       </ul>
       <p className="hint">
