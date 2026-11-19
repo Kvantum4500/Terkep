@@ -12,10 +12,12 @@ declare global {
   }
 }
 
-export function openPannellum(el: HTMLElement, url: string): { destroy: () => void } {
+/** Gömbpanoráma, vagy (`vaov` megadásával) 360°-os körpanoráma, amely csak vízszintesen forog. */
+export function openPannellum(el: HTMLElement, url: string, opts: { vaov?: number } = {}): { destroy: () => void } {
   const v = window.pannellum.viewer(el, {
     type: 'equirectangular',
     panorama: url,
+    ...(opts.vaov ? { haov: 360, vaov: opts.vaov, vOffset: 0, minPitch: -opts.vaov / 2, maxPitch: opts.vaov / 2 } : {}),
     autoLoad: true,
     crossOrigin: 'anonymous',
     showZoomCtrl: true,

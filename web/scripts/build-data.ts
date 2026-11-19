@@ -52,6 +52,8 @@ interface Row {
   desc?: string
   ele?: number
   img?: { file: string; artist?: string; license?: string; license_url?: string }
+  sv?: { lat: number; lon: number; h: number }
+  pano?: string
   alt?: string[]
 }
 
@@ -110,7 +112,7 @@ for (const code of countyKeys) {
   for (const r of rows) {
     if (r.county !== code) continue
     const d: Record<string, unknown> = { sources: r.sources }
-    for (const k of ['sub', 'desc', 'ele', 'img', 'alt', 'wikidata', 'osm', 'huwiki'] as const) {
+    for (const k of ['sub', 'desc', 'ele', 'img', 'alt', 'sv', 'pano', 'wikidata', 'osm', 'huwiki'] as const) {
       if (r[k] !== undefined) d[k] = r[k]
     }
     details[r.id] = d

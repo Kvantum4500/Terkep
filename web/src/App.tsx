@@ -18,6 +18,15 @@ import { UpdateToast } from './ui/UpdateToast'
 
 const BASEMAPS: Basemap[] = ['topo', 'osm', 'sat', 'none']
 const BASEMAP_KEY = 'terkep.basemap'
+const COMPAT_KEY = 'terkep.compat'
+
+function readFlag(key: string): boolean {
+  try {
+    return localStorage.getItem(key) === '1'
+  } catch {
+    return false
+  }
+}
 
 function initialBasemap(): Basemap {
   const q = new URLSearchParams(window.location.search).get('basemap') as Basemap | null
@@ -50,6 +59,7 @@ export function App() {
   // adatok betöltése + kezdeti állapot a URL-ből
   useEffect(() => {
     setBasemap(initialBasemap())
+    useStore.setState({ compatMap: new URLSearchParams(window.location.search).has('compat') || readFlag(COMPAT_KEY) })
     loadData()
       .then((d) => {
         const st = parseHash(window.location.hash, d.index.counties, d.index.cats)
@@ -64,9 +74,10 @@ export function App() {
   useEffect(
     () =>
       useStore.subscribe((s, prev) => {
-        if (s.basemap === prev.basemap) return
+        if (s.basemap === prev.basemap && s.compatMap === prev.compatMap) return
         try {
           localStorage.setItem(BASEMAP_KEY, s.basemap)
+          localStorage.setItem(COMPAT_KEY, s.compatMap ? '1' : '0')
         } catch {
           /* privát mód */
         }

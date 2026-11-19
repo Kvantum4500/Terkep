@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { AppData } from '../data/load'
 import { applyFilters, DEFAULT_FILTERS, type FilterResult, type FilterState } from '../filters/filter'
+import { DEFAULT_PREFS, type RoutePrefs } from '../route/engine'
 import {
   addToPlan,
   EMPTY_PLAN,
@@ -20,13 +21,22 @@ export type SheetTab = 'filters' | 'list' | 'route'
 export interface RouteState {
   plan: RoutePlan
   profile: Profile
+  prefs: RoutePrefs
   alts: RouteAlt[]
   active: number
   status: 'idle' | 'loading' | 'ok' | 'error'
   error: string | null
 }
 
-const ROUTE0: RouteState = { plan: EMPTY_PLAN, profile: 'hike', alts: [], active: 0, status: 'idle', error: null }
+const ROUTE0: RouteState = {
+  plan: EMPTY_PLAN,
+  profile: 'hike',
+  prefs: DEFAULT_PREFS,
+  alts: [],
+  active: 0,
+  status: 'idle',
+  error: null,
+}
 
 interface State {
   data: AppData | null
@@ -40,6 +50,8 @@ interface State {
   aboutOpen: boolean
   /** oldalpanel-elrendezésben a panel nyitva van-e */
   panelOpen: boolean
+  /** kompatibilis térképmegjelenítés (ha a térkép vibrál) */
+  compatMap: boolean
   route: RouteState
   /** a következő térképkoppintás ezt a pontot állítja be */
   pickRole: Role | null
@@ -54,12 +66,14 @@ interface State {
   setTrails: (on: boolean) => void
   setAboutOpen: (open: boolean) => void
   setPanelOpen: (open: boolean) => void
+  setCompatMap: (on: boolean) => void
   addWaypoint: (wp: Waypoint, role: Role) => void
   removeWaypoint: (role: Role, viaIndex?: number) => void
   moveWaypoint: (viaIndex: number, dir: -1 | 1) => void
   reverseRoute: () => void
   clearRoute: () => void
   setProfile: (p: Profile) => void
+  setPrefs: (patch: Partial<RoutePrefs>) => void
   setRouteResult: (r: Partial<Pick<RouteState, 'alts' | 'status' | 'error' | 'active'>>) => void
   setPickRole: (r: Role | null) => void
 }
@@ -81,6 +95,7 @@ export const useStore = create<State>((set, get) => {
     trails: true,
     aboutOpen: false,
     panelOpen: true,
+    compatMap: false,
     route: ROUTE0,
     pickRole: null,
     setData: (data) => set({ data, result: compute(data, get().filters) }),
@@ -97,12 +112,14 @@ export const useStore = create<State>((set, get) => {
     setTrails: (trails) => set({ trails }),
     setAboutOpen: (aboutOpen) => set({ aboutOpen }),
     setPanelOpen: (panelOpen) => set({ panelOpen }),
+    setCompatMap: (compatMap) => set({ compatMap }),
     addWaypoint: (wp, role) => setPlan(addToPlan(get().route.plan, wp, role)),
     removeWaypoint: (role, viaIndex) => setPlan(removeFromPlan(get().route.plan, role, viaIndex)),
     moveWaypoint: (i, dir) => setPlan(moveVia(get().route.plan, i, dir)),
     reverseRoute: () => setPlan(reversePlan(get().route.plan)),
-    clearRoute: () => set({ route: { ...ROUTE0, profile: get().route.profile } }),
+    clearRoute: () => set({ route: { ...ROUTE0, profile: get().route.profile, prefs: get().route.prefs } }),
     setProfile: (profile) => set({ route: { ...get().route, profile } }),
+    setPrefs: (patch) => set({ route: { ...get().route, prefs: { ...get().route.prefs, ...patch } } }),
     setRouteResult: (r) => set({ route: { ...get().route, ...r } }),
     setPickRole: (pickRole) => set({ pickRole }),
   }

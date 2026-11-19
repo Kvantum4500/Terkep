@@ -6,6 +6,24 @@ export const PROFILE_LABEL: Record<Profile, string> = {
   car: 'Autó',
 }
 
+/** Gyalog és kerékpárral: mennyire kerülje a közutakat. */
+export type RoadPref = 'avoid' | 'quiet' | 'any' | 'shortest'
+/** Autóval. */
+export type CarPref = 'fast' | 'nohighway' | 'shortest'
+
+export const ROAD_PREFS: { v: RoadPref; label: string; hint: string }[] = [
+  { v: 'avoid', label: 'Autóút nélkül', hint: 'csak ösvény, földút, kerékpárút, ahol lehet' },
+  { v: 'quiet', label: 'Kis forgalmú utak', hint: 'ösvények és csendes utak előnyben' },
+  { v: 'any', label: 'Bármilyen út', hint: 'közút is, ha rövidebb vagy gyorsabb' },
+  { v: 'shortest', label: 'Legrövidebb', hint: 'a legrövidebb táv, úttípustól függetlenül' },
+]
+
+export const CAR_PREFS: { v: CarPref; label: string; hint: string }[] = [
+  { v: 'fast', label: 'Leggyorsabb', hint: 'autópályán is' },
+  { v: 'nohighway', label: 'Autópálya nélkül', hint: 'autópálya és díjköteles út nélkül' },
+  { v: 'shortest', label: 'Legrövidebb', hint: 'a legrövidebb táv' },
+]
+
 export interface Waypoint {
   lat: number
   lon: number

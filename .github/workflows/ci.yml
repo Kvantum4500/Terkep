@@ -60,6 +60,8 @@ jobs:
         env:
           BASE_PATH: /Terkep/
           TERKEP_DATA: ../data/sample
+          # az e2e a beágyazott Google-utcaképet is teszteli (a Google-kérés mockolva)
+          VITE_GOOGLE_MAPS_EMBED_KEY: e2e-test-key
       - name: Playwright böngésző
         run: npx playwright install --with-deps chromium
       - name: Végponttól végpontig tesztek
@@ -73,6 +75,8 @@ jobs:
           BASE_PATH: /Terkep/
           # nem kötelező: Settings -> Secrets and variables -> Actions -> Variables
           VITE_MAPILLARY_TOKEN: ${{ vars.MAPILLARY_TOKEN }}
+          # böngészőkulcs (Maps Embed API, a Pages-címre korlátozva): beágyazott Google-utcakép
+          VITE_GOOGLE_MAPS_EMBED_KEY: ${{ vars.GOOGLE_MAPS_EMBED_KEY }}
       - name: E2E riport
         if: failure()
         uses: actions/upload-artifact@v4

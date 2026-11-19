@@ -18,9 +18,13 @@ egészségadatok (Samsung Health / Health Connect), AI-asszisztens.
   út mentén**, útleírás, **GPX-letöltés**. Pont a kártyáról („Útvonal ide”, „Útba ejtem”)
   vagy a térképről (hosszú nyomás / jobb klikk). Motor: Valhalla, tartalék: OSRM
   (FOSSGIS, OpenStreetMap-adat); az útvonal csak a készüléken marad.
-- **360°-os körkép:** kiemelt helyeknél magától keres nyílt gömbpanorámát (Wikimedia
-  Commons) és – ha be van állítva – Mapillary-utcaképet; a „Google utcakép” link mindig ott
-  van (a Google Térkép appban nyílik meg).
+- **360°-os kép:** Google-utcakép az appban, a látnivaló felé fordulva (ha be vannak
+  állítva a Google-kulcsok, lásd lent); nyílt gömb- és 360°-os körpanorámák (Wikimedia
+  Commons, Wikidata) és – ha be van állítva – Mapillary-utcaképek. A listában „360°” jelzi,
+  hol van kép, és szűrni is lehet rá.
+- **Útválasztás:** autóút nélkül / kis forgalmú utak / bármilyen út / legrövidebb
+  (autóval: leggyorsabb / autópálya nélkül / legrövidebb), és kiírja, mennyi az útból a közút.
+- **Ha a térkép vibrál** (egyes Samsung-telefonokon): Rétegek → *Kompatibilis mód*.
 - **Vissza gomb:** Androidon a kártyát és az útvonal-nézetet zárja be, nem lép ki az appból.
 - **Telepíthető app (PWA):** Androidon (Samsung Internet / Chrome: „Hozzáadás a
   kezdőképernyőhöz”) és Windowson (Edge / Chrome: „Alkalmazás telepítése”) is
@@ -45,7 +49,22 @@ egészségadatok (Samsung Health / Health Connect), AI-asszisztens.
    and variables → Actions → **Variables** → New repository variable, név:
    `MAPILLARY_TOKEN`. Ez nyilvános, böngészőbe szánt token; nélküle a Commons-körképek és a
    Google-utcakép link működik.
-5. **Valós adat:** Actions → *Adatfrissítés* → Run workflow. Kb. 1–2 óra; a végén PR
+5. **Google-utcakép az appban (nem kötelező, de ajánlott):** a Google Cloud Console-ban
+   (console.cloud.google.com, a projekthez számlázási fiók kell, de ez a két szolgáltatás
+   ingyenes):
+   1. *APIs & Services → Library*: engedélyezd a **Maps Embed API**-t és a
+      **Street View Static API**-t.
+   2. *APIs & Services → Credentials → Create credentials → API key* – **böngészőkulcs**:
+      *Application restrictions*: Websites → `https://kvantum4500.github.io/*` és
+      `https://localhost/*`; *API restrictions*: csak **Maps Embed API**. A kulcsot a repóban
+      így add meg: Settings → Secrets and variables → Actions → **Variables** →
+      `GOOGLE_MAPS_EMBED_KEY` (ez nyilvános lesz a weboldalon, a korlátozás védi).
+   3. Második API-kulcs – **szerverkulcs**: *API restrictions*: csak **Street View Static
+      API**. Ezt titokként add meg: Settings → Secrets and variables → Actions → **Secrets** →
+      `GOOGLE_MAPS_SERVER_KEY`. Az adatfrissítés ezzel nézi meg, melyik látnivalónál van
+      utcakép (a metaadat-lekérés ingyenes).
+   4. Utána futtasd az *Adatfrissítés* workflow-t.
+6. **Valós adat:** Actions → *Adatfrissítés* → Run workflow. Kb. 1–2 óra; a végén PR
    nyílik a friss `data/` könyvtárral és egy riporttal (vármegyénkénti top 15,
    bizonytalan párosítások). A túraoldalak felderítési riportja az artifactok között van.
 

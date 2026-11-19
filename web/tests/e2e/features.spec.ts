@@ -56,13 +56,31 @@ const valhallaBody = (km: number) => ({
 
 async function mockServices(page: Page) {
   const valhallaCalls: string[] = []
-  await page.route('https://valhalla1.openstreetmap.de/**', (route) => {
+  await page.route('https://valhalla1.openstreetmap.de/route?**', (route) => {
     valhallaCalls.push(route.request().url())
     return route.fulfill({
       json: { ...valhallaBody(36.4), alternates: [{ trip: valhallaBody(39.1).trip }] },
       headers: { 'Access-Control-Allow-Origin': '*' },
     })
   })
+  // útfelület-összetétel: 36,4 km-ből 2,4 km közút, ebből 0,4 km forgalmas
+  await page.route('https://valhalla1.openstreetmap.de/trace_attributes', (route) =>
+    route.fulfill({
+      json: {
+        edges: [
+          { use: 'path', length: 30 },
+          { use: 'track', length: 4 },
+          { use: 'road', road_class: 'residential', length: 2 },
+          { use: 'road', road_class: 'secondary', length: 0.4 },
+        ],
+      },
+      headers: { 'Access-Control-Allow-Origin': '*' },
+    }),
+  )
+  // beágyazott Google-utcakép (a tesztbuildben kamu kulccsal)
+  await page.route('https://www.google.com/maps/embed/**', (route) =>
+    route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>utcakép</title><p>Google utcakép (teszt)</p>' }),
+  )
   await page.route(/server\.arcgisonline\.com|tile\.(opentopomap|openstreetmap|waymarkedtrails)\.org/, (r) => r.abort())
   return valhallaCalls
 }
@@ -205,6 +223,10 @@ test('útvonaltervezés: kártya -> „Útvonal ide”, változatok, GPX, látni
     )
     .toBeGreaterThan(0)
 
+  // útfelület-összetétel
+  await expect(page.getByTestId('road-share')).toContainText('Közúton: 2,4 km (7%)')
+  await expect(page.getByTestId('road-share')).toContainText('forgalmas út: 0,4 km')
+
   // változatváltás
   await alts.nth(1).click()
   await expect(alts.nth(1)).toHaveAttribute('aria-checked', 'true')
@@ -320,6 +342,7 @@ test('360°-os körkép a kiemelt helynél (Commons), és Google utcakép link',
   await openCard(page, 'baradla')
   const card = page.getByTestId('poi-card')
   await expect(card.getByTestId('gsv-link')).toHaveAttribute('href', /map_action=pano&viewpoint=48\.474/)
+  await expect(card.getByTestId('sv-search')).toBeVisible()
   await card.getByTestId('pano-open').click()
   const viewer = page.getByTestId('pano-viewer')
   await expect(viewer).toBeVisible()
@@ -350,4 +373,125 @@ test('nem kiemelt helynél gombnyomásra keres; ha nincs felvétel, jelzi', asyn
   const card = page.getByTestId('poi-card')
   await card.getByTestId('pano-search').click()
   await expect(card.getByTestId('pano')).toContainText('nincs nyílt 360°-os felvétel')
+})
+
+test('útválasztás: autóút nélkül / legrövidebb -> a kérés paraméterei', async ({ page, context }) => {
+  await context.grantPermissions(['geolocation'])
+  await context.setGeolocation({ latitude: MATYAS.lat, longitude: MATYAS.lon })
+  const calls = await mockServices(page)
+  await open(page)
+  await openCard(page, 'fellegvár')
+  await page.getByTestId('route-to').click()
+  await expect(page.getByTestId('route-alt').first()).toBeVisible()
+  const last = () => JSON.parse(decodeURIComponent(calls.at(-1)!.split('json=')[1]))
+  expect(last().costing_options.pedestrian.walkway_factor).toBe(0.7) // alap: kis forgalmú utak
+
+  await page.getByTestId('pref-avoid').click()
+  await expect.poll(() => last().costing_options.pedestrian.walkway_factor).toBe(0.35)
+  await expect(page.getByTestId('pref-avoid')).toHaveAttribute('aria-checked', 'true')
+
+  await page.getByTestId('pref-shortest').click()
+  await expect.poll(() => last().costing_options.pedestrian.shortest).toBe(true)
+
+  await page.getByTestId('profile-car').click()
+  await page.getByTestId('pref-nohighway').click()
+  await expect.poll(() => last().costing_options.auto?.use_highways).toBe(0)
+})
+
+test('vibrálás ellen: a lap nem görget, mozgatáskor a térkép nem méreteződik újra', async ({ page }) => {
+  await mockServices(page)
+  await open(page)
+  const scroll = await page.evaluate(() => ({
+    sh: document.scrollingElement!.scrollHeight,
+    h: window.innerHeight,
+    overflow: getComputedStyle(document.body).overflow,
+  }))
+  expect(scroll.sh).toBeLessThanOrEqual(scroll.h)
+  expect(scroll.overflow).toBe('hidden')
+
+  await page.evaluate(() => {
+    const m = (window as unknown as { __terkepMap: { on: (e: string, f: () => void) => void } }).__terkepMap
+    ;(window as unknown as { __resizes: number }).__resizes = 0
+    m.on('resize', () => (window as unknown as { __resizes: number }).__resizes++)
+  })
+  const box = (await page.getByTestId('map').boundingBox())!
+  const cx = box.x + box.width / 2
+  const cy = box.y + box.height / 2
+  await page.mouse.move(cx, cy)
+  await page.mouse.down()
+  for (let i = 1; i <= 15; i++) await page.mouse.move(cx - i * 12, cy - i * 6)
+  await page.mouse.up()
+  await page.waitForTimeout(300)
+  expect(await page.evaluate(() => (window as unknown as { __resizes: number }).__resizes)).toBe(0)
+})
+
+test('kompatibilis mód: a térkép megőrzött rajzpufferrel újraépül, a nézet és a pontok maradnak', async ({ page }) => {
+  await mockServices(page)
+  await open(page, '#m=BZ')
+  await page.waitForTimeout(900)
+  const before = await page.evaluate(() => {
+    const m = (window as unknown as { __terkepMap: { getZoom: () => number } }).__terkepMap
+    return m.getZoom()
+  })
+  await page.getByTestId('layers-btn').click()
+  await page.getByTestId('compat-map').check()
+  const attrs = () =>
+    page.evaluate(() => {
+      const m = (
+        window as unknown as {
+          __terkepMap: { getCanvas: () => HTMLCanvasElement; getZoom: () => number; querySourceFeatures: (s: string) => unknown[] }
+        }
+      ).__terkepMap
+      const gl = m.getCanvas().getContext('webgl2')
+      return {
+        preserve: gl?.getContextAttributes()?.preserveDrawingBuffer ?? null,
+        zoom: m.getZoom(),
+        pois: m.querySourceFeatures('pois').length > 0,
+      }
+    })
+  await expect.poll(async () => (await attrs()).preserve).toBe(true)
+  await expect.poll(async () => (await attrs()).pois).toBe(true)
+  expect((await attrs()).zoom).toBeCloseTo(before, 1)
+  // megmarad újratöltés után is
+  await page.reload()
+  await expect(page.getByTestId('result-count')).toBeVisible()
+  await expect.poll(async () => (await attrs()).preserve).toBe(true)
+})
+
+test('Google-utcakép az appban, ha a pipeline talált felvételt (a látnivaló felé fordulva)', async ({ page }) => {
+  await mockServices(page)
+  // a Baradla részleteibe utcakép-adat (mint a valós adatfrissítés után)
+  await page.route('**/data/details/BZ.json', async (route) => {
+    const res = await route.fetch()
+    const json = await res.json()
+    json['sample:baradla-barlang'] = { ...json['sample:baradla-barlang'], sv: { lat: 48.4731, lon: 20.4962, h: 21 } }
+    await route.fulfill({ response: res, json })
+  })
+  await page.route(/commons\.wikimedia\.org\/w\/api\.php/, (r) =>
+    r.fulfill({ headers: { 'Access-Control-Allow-Origin': '*' }, json: { batchcomplete: true } }),
+  )
+  await open(page)
+  await openCard(page, 'baradla')
+  const card = page.getByTestId('poi-card')
+  await card.getByTestId('sv-open').click()
+  const viewer = page.getByTestId('pano-viewer')
+  await expect(viewer).toBeVisible()
+  const src = await viewer.getByTestId('pano-iframe').getAttribute('src')
+  const u = new URL(src!)
+  expect(u.pathname).toBe('/maps/embed/v1/streetview')
+  expect(u.searchParams.get('location')).toBe('48.473100,20.496200')
+  expect(u.searchParams.get('heading')).toBe('21')
+  expect(u.searchParams.get('key')).toBeTruthy()
+  await expect(viewer).toContainText('Google')
+  await viewer.getByTestId('pano-close').click()
+  await expect(viewer).toBeHidden()
+})
+
+test('szűrő: csak 360°-os képpel', async ({ page }) => {
+  await mockServices(page)
+  await open(page)
+  await page.getByText('360°-os képpel').click()
+  await expect(page).toHaveURL(/j=360/)
+  // a mintaadatban nincs utcakép-adat -> üres lista
+  await expect(page.getByTestId('result-count')).toContainText('0')
 })

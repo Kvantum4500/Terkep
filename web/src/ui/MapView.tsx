@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { MapController, type RoutePointMarker } from '../map/MapController'
+import { MapController, type MapView as MapViewState, type RoutePointMarker } from '../map/MapController'
 import { pointWaypoint, routeTo } from '../state/actions'
 import { useStore } from '../state/store'
 
@@ -20,7 +20,9 @@ export function MapView({ onController }: { onController: (c: MapController | nu
   const active = useStore((s) => s.route.active)
   const pickRole = useStore((s) => s.pickRole)
   const panelOpen = useStore((s) => s.panelOpen)
+  const compat = useStore((s) => s.compatMap)
   const firstCounties = useRef(true)
+  const lastView = useRef<MapViewState | undefined>(undefined)
 
   useEffect(() => {
     if (!ref.current) return
@@ -30,6 +32,8 @@ export function MapView({ onController }: { onController: (c: MapController | nu
       meta: data.meta,
       basemap: st.basemap,
       trails: st.trails && st.basemap !== 'none',
+      compat,
+      view: lastView.current,
       onSelect: (id) => select(id),
       onPick: (p) => {
         const s = useStore.getState()
@@ -43,13 +47,22 @@ export function MapView({ onController }: { onController: (c: MapController | nu
     ctl.current = c
     onController(c)
     void c.setCounties(data.counties)
+    // újralétrehozás után (kompatibilis mód) minden réteg visszakerül
+    if (lastView.current) {
+      const s2 = useStore.getState()
+      if (s2.result) void c.setPois(data.index, s2.result.indices)
+      void c.setActiveCounties(s2.filters.counties, data.counties, false)
+      void c.setSelected(data.index, s2.selected, false)
+      void c.setRoute(s2.route.alts, s2.route.active)
+    }
     ;(window as unknown as { __terkepMap?: unknown }).__terkepMap = c.map
     return () => {
+      lastView.current = c.getView()
       onController(null)
       c.destroy()
       ctl.current = null
     }
-  }, [data, select, onController])
+  }, [data, select, onController, compat])
 
   useEffect(() => {
     if (ctl.current && result) void ctl.current.setPois(data.index, result.indices)
@@ -75,7 +88,7 @@ export function MapView({ onController }: { onController: (c: MapController | nu
     plan.vias.forEach((v, i) => pts.push({ ...v, label: String(i + 1), role: 'via' }))
     if (plan.end) pts.push({ ...plan.end, label: 'C', role: 'end' })
     void ctl.current?.setRoutePoints(pts)
-  }, [plan])
+  }, [plan, compat])
 
   useEffect(() => {
     void ctl.current?.setRoute(alts, active)

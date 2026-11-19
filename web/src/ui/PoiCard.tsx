@@ -74,6 +74,11 @@ export function PoiCard({ id, onClose }: { id: string; onClose: () => void }) {
         {flags & FLAG.heritage ? <span className="badge">Műemlék / védett</span> : null}
         {flags & FLAG.showcave ? <span className="badge warn">Látogatható barlang – általában csak vezetéssel</span> : null}
         {flags & FLAG.kektura ? <span className="badge blue">Kéktúra-pecsételőhely</span> : null}
+        {flags & (FLAG.streetview | FLAG.pano) ? (
+          <span className="badge blue" data-testid="badge-360">
+            360° kép
+          </span>
+        ) : null}
         {flags & FLAG.ruin ? <span className="badge">Rom</span> : null}
         {flags & FLAG.sample ? <span className="badge muted">Mintaadat – közelítő hely</span> : null}
         {flags & FLAG.approx && !(flags & FLAG.sample) ? <span className="badge muted">Közelítő hely</span> : null}
@@ -145,7 +150,7 @@ export function PoiCard({ id, onClose }: { id: string; onClose: () => void }) {
         </button>
       </div>
 
-      <PanoSection key={id} lat={lat} lon={lon} auto={tier === 1} />
+      <PanoSection key={id} lat={lat} lon={lon} auto={tier === 1} detail={detail} />
 
       <div className="ext-links">
         <span className="hint">Megnyitás másik appban:</span>

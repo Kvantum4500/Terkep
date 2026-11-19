@@ -24,6 +24,7 @@ from .models import (
     FLAG_APPROX,
     FLAG_HERITAGE,
     FLAG_IMAGE,
+    FLAG_PANO,
     FLAG_RUIN,
     FLAG_SAMPLE,
     FLAG_SHOWCAVE,
@@ -521,6 +522,9 @@ def build_poi(cl: Cluster) -> Poi | None:
     if huwiki is None:
         huwiki = next((r.ref for r in recs if r.source == "huwiki"), None)
     tier_hint = next((r.extra["tier"] for r in recs if r.extra.get("tier")), None)
+    pano = next((r.extra["pano"] for r in recs if r.extra.get("pano")), None)
+    if pano:
+        flags |= FLAG_PANO
     poi = Poi(
         id=poi_id(cl),
         name=cl.name,
@@ -539,6 +543,7 @@ def build_poi(cl: Cluster) -> Poi | None:
         ele=_choose(recs, "ele"),
         img=img,
         alt=names[:3],
+        pano=pano,
     )
     poi.meta = {
         "sitelinks": max((r.sitelinks for r in recs), default=0),

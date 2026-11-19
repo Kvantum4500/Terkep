@@ -11,7 +11,8 @@ const BASEMAPS: { b: Basemap; label: string }[] = [
 export function LayersMenu() {
   const basemap = useStore((s) => s.basemap)
   const trails = useStore((s) => s.trails)
-  const { setBasemap, setTrails } = useStore.getState()
+  const compat = useStore((s) => s.compatMap)
+  const { setBasemap, setTrails, setCompatMap } = useStore.getState()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -72,6 +73,18 @@ export function LayersMenu() {
             <label className="toggle">
               <input type="checkbox" checked={trails} disabled={basemap === 'none'} onChange={(e) => setTrails(e.target.checked)} />
               <span>Jelzett turistautak</span>
+            </label>
+          </fieldset>
+          <fieldset>
+            <legend>Megjelenítés</legend>
+            <label className="toggle">
+              <input
+                type="checkbox"
+                checked={compat}
+                onChange={(e) => setCompatMap(e.target.checked)}
+                data-testid="compat-map"
+              />
+              <span>Kompatibilis mód (ha a térkép vibrál)</span>
             </label>
           </fieldset>
         </div>

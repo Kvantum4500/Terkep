@@ -24,7 +24,7 @@ export function usePlanner(): void {
       const c = new AbortController()
       ctrl = c
       st.setRouteResult({ status: 'loading', error: null })
-      planRoute(pts, st.route.profile, c.signal)
+      planRoute(pts, st.route.profile, c.signal, undefined, st.route.prefs)
         .then((alts) => {
           if (!c.signal.aborted) useStore.getState().setRouteResult({ alts, active: 0, status: 'ok', error: null })
         })
@@ -38,7 +38,11 @@ export function usePlanner(): void {
         })
     }
     const unsub = useStore.subscribe((s, prev) => {
-      if (s.route.plan !== prev.route.plan || s.route.profile !== prev.route.profile) {
+      if (
+        s.route.plan !== prev.route.plan ||
+        s.route.profile !== prev.route.profile ||
+        s.route.prefs !== prev.route.prefs
+      ) {
         clearTimeout(timer)
         timer = setTimeout(run, 250)
       }

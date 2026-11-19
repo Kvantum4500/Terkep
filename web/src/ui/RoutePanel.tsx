@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { settlementOf } from '../data/decode'
 import { applyFilters } from '../filters/filter'
-import { ENGINE_CREDIT, formatDuration, formatKm, googleDirectionsUrl } from '../route/engine'
+import { ENGINE_CREDIT, formatDuration, formatKm, googleDirectionsUrl, type RoadShare, roadShare } from '../route/engine'
 import { poisAlongRoute, toGpx } from '../route/geo'
-import { planPoints, PROFILE_LABEL, type Profile, type Role, type Waypoint } from '../route/types'
+import { CAR_PREFS, planPoints, PROFILE_LABEL, type Profile, ROAD_PREFS, type Role, type Waypoint } from '../route/types'
 import { locateMe, poiWaypoint } from '../state/actions'
 import { useStore } from '../state/store'
 import { CategoryIcon } from './CategoryIcon'
@@ -19,10 +19,20 @@ export function RoutePanel({ onPick }: { onPick: (id: string) => void }) {
   const filters = useStore((s) => s.filters)
   const route = useStore((s) => s.route)
   const pickRole = useStore((s) => s.pickRole)
-  const { setProfile, removeWaypoint, moveWaypoint, reverseRoute, clearRoute, setRouteResult, setPickRole, addWaypoint } =
-    useStore.getState()
+  const {
+    setProfile,
+    setPrefs,
+    removeWaypoint,
+    moveWaypoint,
+    reverseRoute,
+    clearRoute,
+    setRouteResult,
+    setPickRole,
+    addWaypoint,
+  } = useStore.getState()
   const [locError, setLocError] = useState<string | null>(null)
-  const { plan, profile, alts, active, status, error } = route
+  const [share, setShare] = useState<RoadShare | null>(null)
+  const { plan, profile, prefs, alts, active, status, error } = route
   const alt = alts[active]
   const pts = planPoints(plan)
 
@@ -36,6 +46,15 @@ export function RoutePanel({ onPick }: { onPick: (id: string) => void }) {
     () => (alt ? poisAlongRoute(data.index, candidates, alt.coords, 300, 40) : []),
     [alt, data.index, candidates],
   )
+
+  // mennyi az aktív változatból a közút (kiegészítő adat; hibánál nem jelenik meg)
+  useEffect(() => {
+    setShare(null)
+    if (!alt || alt.engine !== 'valhalla' || profile === 'car') return
+    const c = new AbortController()
+    void roadShare(alt.coords, profile, c.signal).then((r) => !c.signal.aborted && setShare(r))
+    return () => c.abort()
+  }, [alt, profile])
 
   const useMyLocation = (role: Role) => {
     setLocError(null)
@@ -75,6 +94,29 @@ export function RoutePanel({ onPick }: { onPick: (id: string) => void }) {
           </button>
         ))}
       </div>
+
+      <div className="chips prefs" role="radiogroup" aria-label="Útválasztás">
+        {(profile === 'car' ? CAR_PREFS : ROAD_PREFS).map(({ v, label, hint }) => {
+          const on = profile === 'car' ? prefs.car === v : prefs.road === v
+          return (
+            <button
+              key={v}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              className={`chip tier small-chip${on ? ' on' : ''}`}
+              title={hint}
+              onClick={() => (profile === 'car' ? setPrefs({ car: v as typeof prefs.car }) : setPrefs({ road: v as typeof prefs.road }))}
+              data-testid={`pref-${v}`}
+            >
+              {label}
+            </button>
+          )
+        })}
+      </div>
+      {profile !== 'car' && prefs.road === 'avoid' && (
+        <p className="hint">Ahol nincs más összeköttetés, rövid közúti szakasz előfordulhat.</p>
+      )}
 
       <ol className="route-points">
         <PointRow
@@ -172,6 +214,16 @@ export function RoutePanel({ onPick }: { onPick: (id: string) => void }) {
               </button>
             ))}
           </div>
+
+          {share && share.totalKm > 0 && (
+            <p className="road-share" data-testid="road-share">
+              Közúton: {formatKm(share.roadKm)} ({Math.round((100 * share.roadKm) / share.totalKm)}%)
+              {share.busyKm > 0.05 ? `, ebből forgalmas út: ${formatKm(share.busyKm)}` : ''}
+            </p>
+          )}
+          {alt.engine === 'osrm' && (
+            <p className="hint">A tartalék tervező (OSRM) az útválasztási beállítást nem tudja figyelembe venni.</p>
+          )}
 
           <div className="actions">
             <button type="button" className="btn" onClick={downloadGpx} data-testid="gpx">

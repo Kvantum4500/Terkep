@@ -121,6 +121,8 @@ def run(
     pois = apply_overrides(pois, conf)
     conf.report.id_fixes = ensure_unique_ids(pois)
     assign_tiers(pois)
+    if not sample:
+        attach_streetview(pois)
 
     if out_dir is not None:
         from .export import write_outputs
@@ -129,6 +131,24 @@ def run(
     if reports_dir is not None:
         write_reports(reports_dir, pois, conf, dropped, mismatch)
     return BuildResult(pois, conf, dropped, mismatch)
+
+
+def attach_streetview(pois: list[Poi], data: dict[str, dict[str, float]] | None = None) -> int:
+    """A `terkep fetch streetview` eredménye (ha van) a látnivalókhoz."""
+    from .models import FLAG_STREETVIEW
+    from .sources import streetview
+
+    data = streetview.load() if data is None else data
+    n = 0
+    for p in pois:
+        sv = data.get(p.id)
+        if sv:
+            p.sv = sv
+            p.flags |= FLAG_STREETVIEW
+            n += 1
+    if data:
+        log.info("Utcakép %d látnivalónál", n)
+    return n
 
 
 def _boundaries_source() -> str:

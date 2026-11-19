@@ -13,6 +13,8 @@ FLAG_SHOWCAVE = 8  # látogatható barlang (általában csak vezetéssel)
 FLAG_RUIN = 16  # rom
 FLAG_APPROX = 32  # közelítő koordináta
 FLAG_SAMPLE = 64  # kézi mintaadat
+FLAG_STREETVIEW = 128  # van Google-utcakép a közelben
+FLAG_PANO = 256  # van nyílt gömbpanoráma (Wikidata P4640)
 
 FLAG_BY_NAME = {
     "heritage": FLAG_HERITAGE,
@@ -22,6 +24,8 @@ FLAG_BY_NAME = {
     "ruin": FLAG_RUIN,
     "approx": FLAG_APPROX,
     "sample": FLAG_SAMPLE,
+    "streetview": FLAG_STREETVIEW,
+    "pano": FLAG_PANO,
 }
 
 
@@ -81,6 +85,10 @@ class Poi:
     desc: str | None = None
     ele: float | None = None
     img: dict[str, str] | None = None
+    # Google-utcakép a közelben: a felvétel helye és az irány a látnivaló felé
+    sv: dict[str, float] | None = None
+    # nyílt gömbpanoráma (Commons-fájlnév, Wikidata P4640)
+    pano: str | None = None
     # belső, nem exportált adatok a pontozáshoz (sitelinks, források halmaza stb.)
     meta: dict[str, Any] = field(default_factory=dict, repr=False)
 
@@ -107,4 +115,8 @@ class Poi:
             out["ele"] = round(self.ele)
         if self.img:
             out["img"] = self.img
+        if self.sv:
+            out["sv"] = self.sv
+        if self.pano:
+            out["pano"] = self.pano
         return out

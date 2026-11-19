@@ -157,3 +157,83 @@ it('Google utcakép link (külső app)', () => {
     'https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=47.794200,18.981100',
   )
 })
+
+describe('körpanoráma és Google-utcakép', () => {
+  it('360°-os körpanoráma (széles, „360” a címben)', async () => {
+    const { classifyPano, parseCommons } = await import('../../src/pano/find')
+    expect(classifyPano(12000, 2000, 'File:Visegrád 360 körpanoráma.jpg')).toBe('cylinder')
+    expect(classifyPano(12000, 2000, 'File:Széles kép.jpg')).toBeNull()
+    expect(classifyPano(8000, 4000)).toBe('sphere')
+    const p = parseCommons(
+      {
+        query: {
+          pages: [
+            {
+              title: 'File:Vár 360 fok.jpg',
+              coordinates: [{ lat: LAT, lon: LON }],
+              imageinfo: [{ url: 'https://upload.wikimedia.org/c.jpg', width: 12000, height: 2000 }],
+            },
+            {
+              title: 'File:Gömb.jpg',
+              coordinates: [{ lat: LAT + 0.002, lon: LON }],
+              imageinfo: [{ url: 'https://upload.wikimedia.org/g.jpg', width: 8000, height: 4000 }],
+            },
+          ],
+        },
+      },
+      LAT,
+      LON,
+    )
+    // a gömbpanoráma előre kerül, a körpanoráma utána, függőleges látószöggel
+    expect(p.map((x) => x.kind)).toEqual(['sphere', 'cylinder'])
+    expect(p[1].vaov).toBeCloseTo(60)
+  })
+
+  it('beágyazott Google-utcakép a látnivaló felé fordulva; kulcs nélkül nincs', async () => {
+    const { googleEmbedUrl, googlePano, googleSearchPano } = await import('../../src/pano/find')
+    const u = new URL(googleEmbedUrl('KEY', 47.7931, 18.9801, 33.4))
+    expect(u.origin + u.pathname).toBe('https://www.google.com/maps/embed/v1/streetview')
+    expect(u.searchParams.get('heading')).toBe('33')
+    expect(u.searchParams.get('location')).toBe('47.793100,18.980100')
+    expect(u.searchParams.get('language')).toBe('hu')
+    expect(googlePano({ lat: 47.7931, lon: 18.9801, h: 33 }, LAT, LON, '')).toBeNull()
+    const g = googlePano({ lat: 47.7931, lon: 18.9801, h: 33 }, LAT, LON, 'KEY')!
+    expect(g.source).toBe('google')
+    expect(g.distM).toBeGreaterThan(100)
+    expect(new URL(googleSearchPano(LAT, LON, 'KEY')!.url!).searchParams.has('heading')).toBe(false)
+  })
+
+  it('Wikidata-gömbkép (P4640) adatai a Commonsról', async () => {
+    const { commonsFilePano } = await import('../../src/pano/find')
+    let asked = ''
+    const p = await commonsFilePano('Visegrád 360.jpg', (u) => {
+      asked = u
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            query: {
+              pages: [
+                {
+                  title: 'File:Visegrád 360.jpg',
+                  imageinfo: [
+                    {
+                      url: 'https://upload.wikimedia.org/v.jpg',
+                      width: 6000,
+                      height: 3000,
+                      thumburl: 'https://upload.wikimedia.org/4096px-v.jpg',
+                      extmetadata: { Artist: { value: '<b>Nagy</b> Béla' }, LicenseShortName: { value: 'CC0' } },
+                    },
+                  ],
+                },
+              ],
+            },
+          }),
+        ),
+      )
+    })
+    expect(new URL(asked).searchParams.get('titles')).toBe('File:Visegrád 360.jpg')
+    expect(p!.url).toBe('https://upload.wikimedia.org/4096px-v.jpg')
+    expect(p!.author).toBe('Nagy Béla')
+    expect(p!.kind).toBe('sphere')
+  })
+})

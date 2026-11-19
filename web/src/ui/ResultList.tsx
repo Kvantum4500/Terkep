@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { settlementOf } from '../data/decode'
+import { FLAG } from '../data/types'
 import { compareHu, formatCount } from '../filters/text'
 import { useStore } from '../state/store'
 import { CategoryIcon } from './CategoryIcon'
@@ -63,6 +64,11 @@ export function ResultList({ onPick }: { onPick: (id: string) => void }) {
               {county.short}
             </span>
           </span>
+          {index.flags[i] & (FLAG.streetview | FLAG.pano) ? (
+            <span className="badge tag360" title="360°-os kép">
+              360°
+            </span>
+          ) : null}
           {index.tier[i] === 1 && (
             <span className="badge star" title="Kiemelt">
               ★

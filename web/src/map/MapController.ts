@@ -40,6 +40,7 @@ const LONG_PRESS_MS = 550
 const ATTR_OSM = '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> közreműködők'
 const ATTR_ESRI = 'Műhold: © Esri, Maxar, Earthstar Geographics, GIS User Community'
 const EMPTY: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] }
+const RASTER_PAINT = { 'raster-fade-duration': 0 }
 
 function style(glyphs: string): StyleSpecification {
   return {
@@ -90,11 +91,11 @@ function style(glyphs: string): StyleSpecification {
     },
     layers: [
       { id: 'bg', type: 'background', paint: { 'background-color': '#eef0e8' } },
-      { id: 'topo', type: 'raster', source: 'topo', layout: { visibility: 'none' } },
-      { id: 'osm', type: 'raster', source: 'osm', layout: { visibility: 'none' } },
-      { id: 'sat', type: 'raster', source: 'sat', layout: { visibility: 'none' } },
-      { id: 'sat-labels', type: 'raster', source: 'sat-labels', layout: { visibility: 'none' } },
-      { id: 'trails', type: 'raster', source: 'trails', layout: { visibility: 'none' }, paint: { 'raster-opacity': 0.85 } },
+      { id: 'topo', type: 'raster', source: 'topo', layout: { visibility: 'none' }, paint: RASTER_PAINT },
+      { id: 'osm', type: 'raster', source: 'osm', layout: { visibility: 'none' }, paint: RASTER_PAINT },
+      { id: 'sat', type: 'raster', source: 'sat', layout: { visibility: 'none' }, paint: RASTER_PAINT },
+      { id: 'sat-labels', type: 'raster', source: 'sat-labels', layout: { visibility: 'none' }, paint: RASTER_PAINT },
+      { id: 'trails', type: 'raster', source: 'trails', layout: { visibility: 'none' }, paint: { ...RASTER_PAINT, 'raster-opacity': 0.85 } },
       {
         id: 'county-fill',
         type: 'fill',
@@ -234,11 +235,25 @@ export interface MapPoint {
   poiId?: string
 }
 
+export interface MapView {
+  center: [number, number]
+  zoom: number
+  bearing: number
+}
+
 export interface MapControllerOptions {
   container: HTMLElement
   meta: Meta
   basemap: Basemap
   trails: boolean
+  /**
+   * Kompatibilis megjelenítés: egyes (pl. Samsung/Mali) grafikus meghajtókon a térkép
+   * mozgatás közben felvillan; a megőrzött rajzpuffer, a korlátozott felbontás és az
+   * áttűnések kikapcsolása ezt megszünteti.
+   */
+  compat?: boolean
+  /** újralétrehozáskor (pl. kompatibilis mód váltása) a korábbi nézet */
+  view?: MapView
   onSelect: (id: string | null) => void
   /** térképről választás (útvonalpont) */
   onPick?: (p: MapPoint) => void
@@ -264,7 +279,6 @@ export class MapController {
   private activeCounties = new Set<string>()
   private pickMode = false
   private popup: Popup | null = null
-  private resizeObs: ResizeObserver | null = null
   private pressTimer: ReturnType<typeof setTimeout> | null = null
   private opts: MapControllerOptions
 
@@ -278,8 +292,21 @@ export class MapController {
     this.map = new MlMap({
       container: opts.container,
       style: style(glyphs),
-      bounds: HUNGARY_BOUNDS,
-      fitBoundsOptions: { padding: 16 },
+      ...(opts.view
+        ? { center: opts.view.center, zoom: opts.view.zoom, bearing: opts.view.bearing }
+        : { bounds: HUNGARY_BOUNDS, fitBoundsOptions: { padding: 16 } }),
+      // A tároló méretváltozását a MapLibre maga figyeli (trackResize); felesleges
+      // újraméretezés a rajzfelületet kiüríti -> villanás.
+      trackResize: true,
+      // több csempe marad a memóriában: visszafelé mozgatva nem kell újratölteni
+      maxTileCacheSize: 600,
+      ...(opts.compat
+        ? {
+            fadeDuration: 0,
+            pixelRatio: Math.min(window.devicePixelRatio || 1, 2),
+            canvasContextAttributes: { preserveDrawingBuffer: true, antialias: false, powerPreference: 'default' },
+          }
+        : {}),
       maxBounds: [
         [13.5, 44.5],
         [25.5, 49.9],
@@ -356,14 +383,6 @@ export class MapController {
     })
     this.map.on('touchend', () => this.cancelPress())
     this.map.on('movestart', () => this.cancelPress())
-
-    // a térkép mindig a ténylegesen rendelkezésre álló területet tölti ki
-    let raf = 0
-    this.resizeObs = new ResizeObserver(() => {
-      cancelAnimationFrame(raf)
-      raf = requestAnimationFrame(() => this.map.resize())
-    })
-    this.resizeObs.observe(opts.container)
   }
 
   whenReady(): Promise<void> {
@@ -562,9 +581,13 @@ export class MapController {
     this.map.resize()
   }
 
+  getView(): MapView {
+    const c = this.map.getCenter()
+    return { center: [c.lng, c.lat], zoom: this.map.getZoom(), bearing: this.map.getBearing() }
+  }
+
   destroy(): void {
     this.cancelPress()
-    this.resizeObs?.disconnect()
     this.popup?.remove()
     this.map.remove()
   }

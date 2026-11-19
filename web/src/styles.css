@@ -58,6 +58,13 @@ body {
   overscroll-behavior: none;
 }
 
+/* A lap maga sosem görget (csak a panelek): így a mobilböngésző címsora sem mozdul,
+   és a térkép nem méreteződik újra mozgatás közben (ez villanást okozna). */
+html,
+body {
+  overflow: hidden;
+}
+
 a {
   color: var(--accent-2);
 }
@@ -83,6 +90,12 @@ select {
   height: 100%;
   display: flex;
   flex-direction: column;
+}
+
+@supports (height: 100dvh) {
+  .app {
+    height: 100dvh;
+  }
 }
 
 .topbar {
@@ -953,7 +966,21 @@ input[type='checkbox'] {
 
 /* --- útvonaltervező ------------------------------------------------------------- */
 .route .profiles {
-  margin-bottom: 10px;
+  margin-bottom: 8px;
+}
+
+.route .prefs {
+  margin-bottom: 8px;
+}
+
+.chip.small-chip {
+  font-size: 0.82rem;
+  padding: 3px 9px;
+}
+
+.road-share {
+  margin: 4px 0 8px;
+  font-size: 0.9rem;
 }
 
 .route-points {
@@ -1295,4 +1322,25 @@ input[type='checkbox'] {
   .btn.small {
     min-height: 36px;
   }
+}
+
+.badge.tag360 {
+  flex: none;
+  font-size: 0.7rem;
+  padding: 1px 6px;
+  background: var(--blue-soft);
+  color: var(--blue);
+  border-color: transparent;
+}
+
+.pano-box iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.pano .actions {
+  margin: 6px 0;
 }

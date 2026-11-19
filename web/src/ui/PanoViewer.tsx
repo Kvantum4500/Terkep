@@ -32,10 +32,24 @@ export function PanoViewer({ panos, start, onClose }: { panos: Pano[]; start: nu
     let viewer: { destroy: () => void } | null = null
     setError(null)
     el.replaceChildren()
+    if (p.source === 'google') {
+      // Google-utcakép: beágyazott oldal (a Google saját nézegetője és forrásmegjelölése)
+      const f = document.createElement('iframe')
+      f.src = p.url!
+      f.title = p.title
+      f.allowFullscreen = true
+      f.referrerPolicy = 'strict-origin-when-cross-origin'
+      f.setAttribute('data-testid', 'pano-iframe')
+      el.appendChild(f)
+      return () => {
+        alive = false
+        f.remove()
+      }
+    }
     const load =
       p.source === 'mapillary'
         ? import('../pano/mapillaryViewer').then((m) => m.openMapillary(el, p.id, MAPILLARY_TOKEN))
-        : import('../pano/pannellumViewer').then((m) => m.openPannellum(el, p.url!))
+        : import('../pano/pannellumViewer').then((m) => m.openPannellum(el, p.url!, { vaov: p.vaov }))
     load
       .then((v) => {
         if (alive) viewer = v
@@ -56,7 +70,8 @@ export function PanoViewer({ panos, start, onClose }: { panos: Pano[]; start: nu
         <div className="pano-title">
           <strong id="pano-title">{p.title}</strong>
           <span className="pano-credit">
-            {p.source === 'mapillary' ? 'Mapillary' : 'Wikimedia Commons'}
+            {p.source === 'google' ? 'Google' : p.source === 'mapillary' ? 'Mapillary' : 'Wikimedia Commons'}
+            {p.kind === 'cylinder' ? ' · 360°-os körpanoráma' : ''}
             {p.author ? ` · ${p.author}` : ''}
             {p.license ? (
               <>
@@ -78,7 +93,7 @@ export function PanoViewer({ panos, start, onClose }: { panos: Pano[]; start: nu
                 </a>
               </>
             ) : null}
-            {` · ${p.distM} m-re`}
+            {p.distM !== undefined ? ` · ${p.distM} m-re` : ''}
           </span>
         </div>
         <button ref={closeBtn} type="button" className="icon-btn pano-close" onClick={onClose} aria-label="Bezárás" data-testid="pano-close">
@@ -103,8 +118,8 @@ export function PanoViewer({ panos, start, onClose }: { panos: Pano[]; start: nu
               onClick={() => setK(i)}
               title={x.title}
             >
-              {x.thumb ? <img src={x.thumb} alt="" loading="lazy" /> : <span>{i + 1}</span>}
-              <small>{x.distM} m</small>
+              {x.thumb ? <img src={x.thumb} alt="" loading="lazy" /> : <span>{x.source === 'google' ? 'Google' : i + 1}</span>}
+              {x.distM !== undefined && <small>{x.distM} m</small>}
             </button>
           ))}
         </div>

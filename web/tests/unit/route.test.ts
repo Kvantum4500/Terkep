@@ -273,3 +273,81 @@ describe('útvonalterv', () => {
     expect(r.vias.map((w) => w.name)).toEqual(['Visegrádi fellegvár', 'B2'])
   })
 })
+
+describe('útválasztási beállítások', () => {
+  it('túra: autóút nélkül a gyalogutak sokkal olcsóbbak; legrövidebb', async () => {
+    const { valhallaCosting } = await import('../../src/route/engine')
+    const avoid = valhallaCosting('hike', { road: 'avoid', car: 'fast' }).costing_options.pedestrian as Record<string, number>
+    const quiet = valhallaCosting('hike', { road: 'quiet', car: 'fast' }).costing_options.pedestrian as Record<string, number>
+    expect(avoid.walkway_factor).toBeLessThan(quiet.walkway_factor)
+    expect(avoid.driveway_factor).toBeGreaterThan(1)
+    expect(avoid.max_hiking_difficulty).toBe(3)
+    const shortest = valhallaCosting('hike', { road: 'shortest', car: 'fast' }).costing_options.pedestrian as Record<string, unknown>
+    expect(shortest.shortest).toBe(true)
+  })
+
+  it('kerékpár és autó', async () => {
+    const { valhallaCosting } = await import('../../src/route/engine')
+    const b = valhallaCosting('bike', { road: 'avoid', car: 'fast' }).costing_options.bicycle as Record<string, unknown>
+    expect(b.use_roads).toBe(0)
+    expect(b.bicycle_type).toBe('Mountain')
+    const c = valhallaCosting('car', { road: 'quiet', car: 'nohighway' })
+    expect(c.costing).toBe('auto')
+    expect((c.costing_options.auto as Record<string, number>).use_highways).toBe(0)
+    expect((valhallaCosting('car', { road: 'quiet', car: 'shortest' }).costing_options.auto as Record<string, boolean>).shortest).toBe(true)
+  })
+
+  it('a beállítás bekerül a kérésbe', async () => {
+    const { valhallaRequest } = await import('../../src/route/engine')
+    const r = valhallaRequest([A, B], 'bike', { road: 'any', car: 'fast' }) as {
+      costing_options: { bicycle: { use_roads: number } }
+    }
+    expect(r.costing_options.bicycle.use_roads).toBe(0.6)
+  })
+})
+
+describe('útfelület-összetétel', () => {
+  it('polyline-kódolás oda-vissza', async () => {
+    const { encodePolyline } = await import('../../src/route/engine')
+    const line: [number, number][] = [
+      [19.0344, 47.502],
+      [18.9811, 47.7942],
+    ]
+    expect(decodePolyline(encodePolyline(line), 6)).toEqual(line)
+  })
+
+  it('közút és ebből forgalmas út összesítése', async () => {
+    const { summarizeEdges } = await import('../../src/route/engine')
+    const s = summarizeEdges([
+      { use: 'footway', length: 2 },
+      { use: 'track', length: 3 },
+      { use: 'road', road_class: 'residential', length: 1 },
+      { use: 'road', road_class: 'secondary', length: 0.5 },
+      { use: 'living_street', length: 0.5 },
+    ])
+    expect(s.totalKm).toBe(7)
+    expect(s.roadKm).toBe(2)
+    expect(s.busyKm).toBe(0.5)
+  })
+
+  it('a trace_attributes hibája nem hiba (csak kiegészítő adat)', async () => {
+    const { roadShare, TRACE_ATTRIBUTES_URL } = await import('../../src/route/engine')
+    const line: [number, number][] = [
+      [19, 47],
+      [19.1, 47.1],
+    ]
+    expect(await roadShare(line, 'hike', undefined, () => Promise.reject(new TypeError('x')))).toBeNull()
+    let init: RequestInit | undefined
+    const r = await roadShare(line, 'hike', undefined, (u, i) => {
+      expect(u).toBe(TRACE_ATTRIBUTES_URL)
+      init = i
+      return Promise.resolve(
+        new Response(JSON.stringify({ edges: [{ use: 'road', road_class: 'tertiary', length: 1 }, { use: 'path', length: 3 }] })),
+      )
+    })
+    expect(r).toEqual({ totalKm: 4, roadKm: 1, busyKm: 0 })
+    // „egyszerű” kérés: nincs CORS-előkérés
+    expect((init?.headers as Record<string, string>)['Content-Type']).toMatch(/^text\/plain/)
+    expect(JSON.parse(init!.body as string).shape_match).toBe('edge_walk')
+  })
+})

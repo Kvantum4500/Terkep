@@ -159,3 +159,26 @@ def test_split_queries_use_few_retries_others_more():
     wikidata._sparql(C(), "SELECT 1")
     assert seen == [wikidata.SPLIT_ATTEMPTS] * 2 + [wikidata.SPARQL_ATTEMPTS] * 2
     assert wikidata.SPLIT_ATTEMPTS < wikidata.SPARQL_ATTEMPTS
+
+
+def test_photosphere_p4640_becomes_pano_flag():
+    from terkep_pipeline import config
+    from terkep_pipeline.conflate import build_poi, conflate
+    from terkep_pipeline.models import FLAG_PANO
+
+    rows = [
+        {
+            "item": {"type": "uri", "value": E + "Q10"},
+            "c": lit("Point(18.98 47.79)"),
+            "l": lit("Visegrádi fellegvár"),
+            "ps": lit("http://commons.wikimedia.org/wiki/Special:FilePath/Visegr%C3%A1d%20360.jpg"),
+            "classes": lit("Q23413"),
+        }
+    ]
+    rec = rows_to_records(rows, {"Q23413": "Q23413"})[0]
+    assert rec.extra["pano"] == "Visegrád 360.jpg"
+    conf = conflate([rec], ["wikidata"], config.sources()["sources"])
+    poi = build_poi(conf.clusters[0])
+    assert poi.pano == "Visegrád 360.jpg"
+    assert poi.flags & FLAG_PANO
+    assert poi.to_json()["pano"] == "Visegrád 360.jpg"

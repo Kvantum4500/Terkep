@@ -142,6 +142,7 @@ export function FilterPanel() {
           <Toggle label="látogatható barlangok" on={filters.showcave} onChange={(v) => setFilters({ showcave: v })} />
           <Toggle label="Kéktúra-pecsételőhelyek" on={filters.kektura} onChange={(v) => setFilters({ kektura: v })} />
           <Toggle label="műemlékek, védett helyek" on={filters.heritage} onChange={(v) => setFilters({ heritage: v })} />
+          <Toggle label="360°-os képpel (utcakép, gömbpanoráma)" on={filters.pano} onChange={(v) => setFilters({ pano: v })} />
         </div>
       </section>
 

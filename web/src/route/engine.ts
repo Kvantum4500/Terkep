@@ -4,7 +4,7 @@
 // Mindkettőt az openstreetmap.org útvonaltervezője is a böngészőből hívja.
 
 import { ascentDescent } from './geo'
-import type { Profile, RouteAlt, RouteStep, Waypoint } from './types'
+import type { CarPref, Profile, RoadPref, RouteAlt, RouteStep, Waypoint } from './types'
 
 export const VALHALLA_URL = 'https://valhalla1.openstreetmap.de/route'
 export const OSRM_URL = 'https://routing.openstreetmap.de'
@@ -14,32 +14,64 @@ export const ENGINE_CREDIT = {
   osrm: 'Útvonal: OSRM – FOSSGIS e.V. (openstreetmap.de), adatok © OpenStreetMap közreműködők',
 } as const
 
+export interface RoutePrefs {
+  road: RoadPref
+  car: CarPref
+}
+
+export const DEFAULT_PREFS: RoutePrefs = { road: 'quiet', car: 'fast' }
+
+const HIKE: Record<RoadPref, Record<string, unknown>> = {
+  // a gyalogútnak szánt (autóval nem járható) utak sokkal olcsóbbak -> a közút csak végszükségből
+  avoid: {
+    walkway_factor: 0.35,
+    sidewalk_factor: 1.4,
+    alley_factor: 2,
+    driveway_factor: 5,
+    service_factor: 1.6,
+    use_living_streets: 0.1,
+    use_tracks: 1,
+  },
+  quiet: { walkway_factor: 0.7, use_living_streets: 0.6, use_tracks: 1 },
+  any: { walkway_factor: 1, use_tracks: 0.5 },
+  shortest: { shortest: true },
+}
+
+const BIKE: Record<RoadPref, Record<string, unknown>> = {
+  avoid: { bicycle_type: 'Mountain', use_roads: 0, avoid_bad_surfaces: 0, use_living_streets: 0.2 },
+  quiet: { bicycle_type: 'Hybrid', use_roads: 0.2, avoid_bad_surfaces: 0.3 },
+  any: { bicycle_type: 'Hybrid', use_roads: 0.6, avoid_bad_surfaces: 0.5 },
+  shortest: { bicycle_type: 'Hybrid', shortest: true },
+}
+
+const CAR: Record<CarPref, Record<string, unknown>> = {
+  fast: {},
+  nohighway: { use_highways: 0, use_tolls: 0 },
+  shortest: { shortest: true },
+}
+
 /** Valhalla-profilok: túrán az ösvények és földutak előnyben, nehezebb terep is mehet. */
-export function valhallaCosting(profile: Profile): { costing: string; costing_options: Record<string, unknown> } {
+export function valhallaCosting(
+  profile: Profile,
+  prefs: RoutePrefs = DEFAULT_PREFS,
+): { costing: string; costing_options: Record<string, unknown> } {
   switch (profile) {
     case 'hike':
       return {
         costing: 'pedestrian',
-        costing_options: {
-          pedestrian: { use_tracks: 1, walkway_factor: 0.9, max_hiking_difficulty: 3, use_hills: 0.5 },
-        },
+        costing_options: { pedestrian: { max_hiking_difficulty: 3, use_hills: 0.5, ...HIKE[prefs.road] } },
       }
     case 'bike':
-      return {
-        costing: 'bicycle',
-        costing_options: {
-          bicycle: { bicycle_type: 'Hybrid', use_roads: 0.2, avoid_bad_surfaces: 0.3, use_hills: 0.4 },
-        },
-      }
+      return { costing: 'bicycle', costing_options: { bicycle: { use_hills: 0.4, ...BIKE[prefs.road] } } }
     default:
-      return { costing: 'auto', costing_options: {} }
+      return { costing: 'auto', costing_options: { auto: { ...CAR[prefs.car] } } }
   }
 }
 
-export function valhallaRequest(points: Waypoint[], profile: Profile): Record<string, unknown> {
+export function valhallaRequest(points: Waypoint[], profile: Profile, prefs?: RoutePrefs): Record<string, unknown> {
   return {
     locations: points.map((p) => ({ lat: round6(p.lat), lon: round6(p.lon), type: 'break' })),
-    ...valhallaCosting(profile),
+    ...valhallaCosting(profile, prefs),
     directions_options: { language: 'hu-HU', units: 'kilometers' },
     // alternatívát a Valhalla csak két pont között ad
     alternates: points.length === 2 ? 2 : 0,
@@ -47,9 +79,9 @@ export function valhallaRequest(points: Waypoint[], profile: Profile): Record<st
   }
 }
 
-export function valhallaUrl(points: Waypoint[], profile: Profile): string {
+export function valhallaUrl(points: Waypoint[], profile: Profile, prefs?: RoutePrefs): string {
   // GET (nem POST JSON): így nincs CORS-előkérés
-  return `${VALHALLA_URL}?json=${encodeURIComponent(JSON.stringify(valhallaRequest(points, profile)))}`
+  return `${VALHALLA_URL}?json=${encodeURIComponent(JSON.stringify(valhallaRequest(points, profile, prefs)))}`
 }
 
 const round6 = (x: number) => Math.round(x * 1e6) / 1e6
@@ -172,10 +204,11 @@ export async function planRoute(
   profile: Profile,
   signal?: AbortSignal,
   fetchFn: FetchFn = (u, i) => fetch(u, i),
+  prefs?: RoutePrefs,
 ): Promise<RouteAlt[]> {
   if (points.length < 2) throw new Error('Legalább két pont kell.')
   try {
-    const res = await fetchFn(valhallaUrl(points, profile), { signal })
+    const res = await fetchFn(valhallaUrl(points, profile, prefs), { signal })
     if (res.ok) return parseValhalla(await res.json())
     // 400: nincs útvonal (pl. elérhetetlen pont) – ezt az OSRM-mel is megpróbáljuk
   } catch (e) {
@@ -212,4 +245,86 @@ export function googleDirectionsUrl(points: Waypoint[], profile: Profile): strin
   })
   if (points.length > 2) q.set('waypoints', points.slice(1, -1).map(fmt).join('|'))
   return `https://www.google.com/maps/dir/?${q.toString()}`
+}
+
+export const TRACE_ATTRIBUTES_URL = 'https://valhalla1.openstreetmap.de/trace_attributes'
+
+/** Polyline-kódolás (Valhalla: 6 jegy). */
+export function encodePolyline(coords: [number, number][], precision = 6): string {
+  const f = 10 ** precision
+  let out = ''
+  let plat = 0
+  let plon = 0
+  const enc = (v: number) => {
+    let x = v < 0 ? ~(v << 1) : v << 1
+    while (x >= 0x20) {
+      out += String.fromCharCode((0x20 | (x & 0x1f)) + 63)
+      x >>= 5
+    }
+    out += String.fromCharCode(x + 63)
+  }
+  for (const [lon, lat] of coords) {
+    const ilat = Math.round(lat * f)
+    const ilon = Math.round(lon * f)
+    enc(ilat - plat)
+    enc(ilon - plon)
+    plat = ilat
+    plon = ilon
+  }
+  return out
+}
+
+export interface RoadShare {
+  totalKm: number
+  /** közút (bármilyen gépjárművel járható út) */
+  roadKm: number
+  /** ebből forgalmas (autópálya, autóút, fő- és mellékút) */
+  busyKm: number
+}
+
+const BUSY = new Set(['motorway', 'trunk', 'primary', 'secondary'])
+const ROAD_USES = new Set(['road', 'living_street', 'service_road', 'driveway', 'alley', 'parking_aisle', 'drive_through'])
+
+export function summarizeEdges(edges: { use?: string; road_class?: string; length?: number }[]): RoadShare {
+  let totalKm = 0
+  let roadKm = 0
+  let busyKm = 0
+  for (const e of edges) {
+    const km = e.length ?? 0
+    totalKm += km
+    if (e.use && ROAD_USES.has(e.use)) {
+      roadKm += km
+      if (e.road_class && BUSY.has(e.road_class)) busyKm += km
+    }
+  }
+  return { totalKm, roadKm, busyKm }
+}
+
+/** Mennyi az útvonalból a közút (Valhalla trace_attributes). Hibánál null – ez csak kiegészítő adat. */
+export async function roadShare(
+  coords: [number, number][],
+  profile: Profile,
+  signal?: AbortSignal,
+  fetchFn: FetchFn = (u, i) => fetch(u, i),
+): Promise<RoadShare | null> {
+  const body = {
+    encoded_polyline: encodePolyline(coords),
+    costing: valhallaCosting(profile).costing,
+    shape_match: 'edge_walk',
+    filters: { attributes: ['edge.use', 'edge.road_class', 'edge.length'], action: 'include' },
+  }
+  try {
+    // text/plain: „egyszerű” kérés, nincs CORS-előkérés
+    const res = await fetchFn(TRACE_ATTRIBUTES_URL, {
+      method: 'POST',
+      body: JSON.stringify(body),
+      headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+      signal,
+    })
+    if (!res.ok) return null
+    const json = (await res.json()) as { edges?: { use?: string; road_class?: string; length?: number }[] }
+    return json.edges?.length ? summarizeEdges(json.edges) : null
+  } catch {
+    return null
+  }
 }

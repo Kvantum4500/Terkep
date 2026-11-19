@@ -53,6 +53,7 @@ jobs:
           path: |
             pipeline/cache/http
             pipeline/build/wikidata_classes.json
+            pipeline/build/streetview.json
           key: terkep-http-${{ github.run_id }}
           restore-keys: terkep-http-
 
@@ -96,6 +97,19 @@ jobs:
 
       - name: Összevonás, pontozás, export
         run: terkep build
+
+      # Google-utcakép a kiemelt és érdekes helyeknél (a metaadat ingyenes). Kulcs nélkül kimarad.
+      # A kulcs csak titokként kerül ide, a parancs sosem írja ki.
+      - name: Google-utcakép helye
+        env:
+          GOOGLE_MAPS_SERVER_KEY: ${{ secrets.GOOGLE_MAPS_SERVER_KEY }}
+        run: terkep fetch streetview
+        continue-on-error: true
+      - name: Összevonás újra (utcakép-adattal)
+        run: terkep build
+      - name: 360°-os képek lefedettsége
+        run: terkep pano-audit
+        continue-on-error: true
       - name: Adatminőségi tesztek
         # az eredmény a riportba kerül; a PR-en a CI is lefuttatja és jelzi
         run: pytest -q -m data 2>&1 | tee build/reports/data_qa.txt
@@ -112,6 +126,7 @@ jobs:
           path: |
             pipeline/cache/http
             pipeline/build/wikidata_classes.json
+            pipeline/build/streetview.json
           key: terkep-http-${{ github.run_id }}
 
       - name: Riportok

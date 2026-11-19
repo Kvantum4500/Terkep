@@ -64,8 +64,8 @@ export function About() {
           tervezett útvonal csak ezen a készüléken marad.
         </li>
         <li>
-          360°-os körképek: Wikimedia Commons (a szerzők licencével), Mapillary (CC BY-SA 4.0); nézegetők: Pannellum,
-          MapillaryJS (MIT)
+          360°-os képek: Google utcakép (Maps Embed API), Wikimedia Commons és Wikidata (a szerzők licencével),
+          Mapillary (CC BY-SA 4.0); nézegetők: Pannellum, MapillaryJS (MIT)
         </li>
         <li>Ikonok: Maki (CC0); betűtípus: Noto Sans (SIL OFL)</li>
       </ul>

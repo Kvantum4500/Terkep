@@ -167,7 +167,7 @@ def enrich_query(qids: list[str]) -> str:
     return f"""
     SELECT ?item (SAMPLE(?coord) AS ?c) (SAMPLE(?label) AS ?l) (SAMPLE(?desc) AS ?d) (SAMPLE(?img) AS ?i)
            (SAMPLE(?sl) AS ?s) (SAMPLE(?article) AS ?a) (SAMPLE(?herit) AS ?h) (SAMPLE(?ele) AS ?e)
-           (SAMPLE(?admLabel) AS ?adm)
+           (SAMPLE(?admLabel) AS ?adm) (SAMPLE(?sphere) AS ?ps)
            (GROUP_CONCAT(DISTINCT STRAFTER(STR(?p31), "{ENTITY}"); separator="|") AS ?classes)
     WHERE {{
       VALUES ?item {{ {values} }}
@@ -181,6 +181,7 @@ def enrich_query(qids: list[str]) -> str:
       OPTIONAL {{ ?item wdt:P2044 ?ele . }}
       OPTIONAL {{ ?item wdt:P131 ?admin . ?admin rdfs:label ?admLabel . FILTER(LANG(?admLabel) = "hu") }}
       OPTIONAL {{ ?item wdt:P31 ?p31 . }}
+      OPTIONAL {{ ?item wdt:P4640 ?sphere . }}
     }} GROUP BY ?item"""
 
 
@@ -203,6 +204,9 @@ def rows_to_records(rows: list[dict], class_to_root: dict[str, str]) -> list[Sou
             except ValueError:
                 ele = None
         heritage = "h" in r
+        extra: dict = {"heritage": True} if heritage else {}
+        if "ps" in r:
+            extra["pano"] = _commons_file(r["ps"]["value"])
         out.append(
             SourceRecord(
                 source="wikidata",
@@ -220,7 +224,7 @@ def rows_to_records(rows: list[dict], class_to_root: dict[str, str]) -> list[Sou
                 sitelinks=int(r["s"]["value"]) if "s" in r else 0,
                 flags=FLAG_HERITAGE if heritage else 0,
                 coord_quality="exact" if coords else "none",
-                extra={"heritage": True} if heritage else {},
+                extra=extra,
             )
         )
     return out

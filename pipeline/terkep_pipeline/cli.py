@@ -9,7 +9,9 @@ Példák:
   terkep discover all              # túraoldalak felderítése (riport)
   terkep fetch site all            # engedélyezett túraoldalak
   terkep build                     # valós adat -> data/
+  terkep fetch streetview          # Google-utcakép helye (GOOGLE_MAPS_SERVER_KEY)
   terkep golden                    # aranylista-ellenőrzés
+  terkep pano-audit                # 360°-os képek lefedettsége (riport)
   terkep verify-config             # Wikidata QID-k ellenőrzése
 """
 
@@ -115,6 +117,17 @@ def cmd_fetch(args) -> int:
         old = commons.load_meta()
         meta = {**old, **commons.fetch_meta(client, files - set(old))}
         commons.save_meta(meta)
+    elif what == "streetview":
+        import os
+
+        from .sources import streetview
+
+        key = os.environ.get(streetview.KEY_ENV, "").strip()
+        if not key:
+            log.warning("Nincs %s – az utcakép-lépés kimarad.", streetview.KEY_ENV)
+            return 0
+        rows = load_ndjson(DATA_DIR / "pois.ndjson")
+        streetview.save(streetview.fetch(rows, key=key, max_tier=args.max_tier))
     elif what == "site":
         from .sources.sites import SITE_KEYS, adapter_for
 
@@ -230,6 +243,17 @@ def cmd_golden(args) -> int:
     return 1 if failures else 0
 
 
+def cmd_pano_audit(args) -> int:
+    from .pano_audit import audit
+
+    report = audit(_client(args), load_ndjson(Path(args.data) / "pois.ndjson"), max_tier=args.max_tier)
+    out = BUILD_DIR / "reports" / "pano_audit.md"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(report, encoding="utf-8")
+    print(report)
+    return 0
+
+
 def cmd_verify_config(args) -> int:
     from .sources import wikidata
 
@@ -254,11 +278,12 @@ def main(argv: list[str] | None = None) -> int:
     b.set_defaults(func=cmd_boundaries)
 
     f = sub.add_parser("fetch", help="forrás letöltése")
-    f.add_argument("what", choices=["osm", "wikidata", "huwiki", "commons", "site"])
+    f.add_argument("what", choices=["osm", "wikidata", "huwiki", "commons", "streetview", "site"])
     f.add_argument("site", nargs="?", default="all")
     f.add_argument("--pbf", help="helyi PBF-fájl (letöltés helyett)")
     f.add_argument("--refresh", action="store_true", help="Wikidata osztályfák újratöltése")
     f.add_argument("--max-pages", type=int, default=None)
+    f.add_argument("--max-tier", type=int, default=2, help="utcakép: legfeljebb ilyen szintű helyekhez")
     f.set_defaults(func=cmd_fetch)
 
     d = sub.add_parser("discover", help="túraoldalak felderítése")
@@ -273,6 +298,11 @@ def main(argv: list[str] | None = None) -> int:
     g = sub.add_parser("golden", help="aranylista-ellenőrzés")
     g.add_argument("--data", default=str(DATA_DIR))
     g.set_defaults(func=cmd_golden)
+
+    pa = sub.add_parser("pano-audit", help="360°-os képek: hány kiemelt helynél van (riport)")
+    pa.add_argument("--data", default=str(DATA_DIR))
+    pa.add_argument("--max-tier", type=int, default=1)
+    pa.set_defaults(func=cmd_pano_audit)
 
     v = sub.add_parser("verify-config", help="Wikidata QID-k ellenőrzése")
     v.set_defaults(func=cmd_verify_config)

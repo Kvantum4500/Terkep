@@ -53,6 +53,14 @@
         "license": {"type": "string"},
         "license_url": {"type": "string"}
       }
-    }
+    },
+    "sv": {
+      "description": "Google-utcakép a közelben: a felvétel helye és az irány (fok) a látnivaló felé",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lat", "lon", "h"],
+      "properties": {"lat": {"type": "number"}, "lon": {"type": "number"}, "h": {"type": "number"}}
+    },
+    "pano": {"description": "Nyílt gömbpanoráma (Commons-fájl, Wikidata P4640)", "type": "string"}
   }
 }
