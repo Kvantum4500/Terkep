@@ -57,6 +57,10 @@ DEFAULT_RADII = (300.0, 150.0, None)
 DEDUPE_M = 50.0
 # Azonos QID-ű rekordok ezen a távolságon belül egy pontot jelentenek (hosszú híd, tó, völgy).
 SAME_QID_MAX_M = 5000.0
+# Ha egy OSM-objektum besorolhatatlan Wikidata-elemre mutat, és az messze van vagy
+# más a neve, az a tárgya (szobor alakja, kiállított harckocsi típusa, a falu), nem a hely.
+SUBJECT_MAX_M = 2000.0
+SUBJECT_MIN_SIM = 0.5
 STRONG = 0.85
 WEAK = 0.6
 AMBIGUOUS = 0.5
@@ -113,7 +117,14 @@ class Cluster:
 
     @property
     def name(self) -> str:
-        return min(self.records, key=lambda r: _prio(r.source)).name
+        ordered = sorted(self.records, key=lambda r: _prio(r.source))
+        first = ordered[0].name
+        if is_generic(first):
+            # „Vár”, „Viadukt”, „Jegypénztár”: a többi forrás (elsőként a Wikidata) valódi neve
+            for r in ordered[1:]:
+                if r.name and not is_generic(r.name):
+                    return r.name
+        return first
 
     @property
     def settlement(self) -> str | None:
@@ -132,6 +143,7 @@ class Report:
     ambiguous: list[dict] = field(default_factory=list)
     unmatched: list[dict] = field(default_factory=list)
     qid_conflicts: list[dict] = field(default_factory=list)
+    subject_qids: list[dict] = field(default_factory=list)
     deduped: int = 0
     id_fixes: int = 0
 
@@ -141,6 +153,7 @@ class Report:
             ("ambiguous_matches.csv", self.ambiguous),
             ("unmatched.csv", self.unmatched),
             ("qid_conflicts.csv", self.qid_conflicts),
+            ("subject_qids.csv", self.subject_qids),
         ):
             with (out_dir / name).open("w", newline="", encoding="utf-8") as f:
                 if not rows:
@@ -430,8 +443,50 @@ class Conflator:
             self.by_qid[qid] = head
 
 
+def _subject_reason(rec: SourceRecord, item: SourceRecord) -> str | None:
+    """Miért a tárgyára (és nem a helyre) mutat a rekord QID-je; None, ha a helyre."""
+    if not item.has_coords:
+        return "a Wikidata-elemnek nincs helye"
+    if rec.has_coords:
+        d = distance_m(rec.lat, rec.lon, item.lat, item.lon)
+        if d > SUBJECT_MAX_M:
+            return f"{round(d)} m-re van"
+    if name_similarity(rec.name, item.name, rec.settlement, item.settlement) < SUBJECT_MIN_SIM:
+        return "más a neve"
+    return None
+
+
+def _strip_subject_qids(records: list[SourceRecord], report: Report) -> None:
+    """A tárgyra mutató QID-ek leválasztása.
+
+    Az OSM-ben a „wikidata” címke gyakran a szobor alakjára, a kiállított tárgy típusára
+    (T-34, MiG-21), egy fajtára vagy a falura mutat (a helyes címke a „subject:wikidata”
+    lenne). Ilyenkor a pontozás a tárgy Wikipédia-ismertségét kapná, és a hely a kiemeltek
+    közé kerülne. Jel: a Wikidata-elem a mi osztálytérképünkkel besorolhatatlan, és nincs
+    helye, messze van, vagy más a neve. A besorolt elemekhez (vár, templom…) nem nyúlunk.
+    """
+    items = {r.ref: r for r in records if r.source == "wikidata"}
+    for rec in records:
+        if rec.source == "wikidata" or not rec.wikidata:
+            continue
+        item = items.get(rec.wikidata)
+        if item is None or item.cat is not None:
+            continue
+        why = _subject_reason(rec, item)
+        if why is None:
+            continue
+        report.subject_qids.append(
+            {"forras": rec.key, "nev": rec.name, "qid": rec.wikidata, "targy": item.name, "ok": why}
+        )
+        rec.extra["subject_wikidata"] = rec.wikidata
+        rec.wikidata = None
+        if rec.huwiki and rec.huwiki == item.huwiki:
+            rec.huwiki = None
+
+
 def conflate(records: list[SourceRecord], source_order: list[str], source_cfgs: dict[str, dict]) -> Conflator:
     conf = Conflator(source_cfgs)
+    _strip_subject_qids(records, conf.report)
     # a Wikidata-elemek saját kategóriája: ez dönti el, melyik OSM-rekordon marad a QID
     qid_cat = {r.ref: r.cat for r in records if r.source == "wikidata"}
     records = _dedupe_within_source(records, conf.report, qid_cat)

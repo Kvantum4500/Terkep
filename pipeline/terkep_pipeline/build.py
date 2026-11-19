@@ -212,6 +212,8 @@ def write_reports(
         f"- Bizonytalan párosítás: {len(conf.report.ambiguous)} (ambiguous_matches.csv)",
         f"- Párosítatlan megerősítő rekord: {len(conf.report.unmatched)} (unmatched.csv)",
         f"- Távoli rekord azonos QID-del (QID levéve): {len(conf.report.qid_conflicts)} (qid_conflicts.csv)",
+        f"- Tárgyra mutató QID levéve (szobor, kiállított tárgy, falu): {len(conf.report.subject_qids)}"
+        " (subject_qids.csv)",
         f"- Azonosító-ütközés javítva: {conf.report.id_fixes}",
         f"- Elvetett pont: {len(dropped)} (dropped.csv)",
         f"- Eltérő vármegye a vártnál: {len(mismatch)} (county_mismatch.csv)",

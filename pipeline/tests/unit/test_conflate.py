@@ -303,3 +303,88 @@ def test_same_qid_on_peak_and_tower_keeps_both():
     assert by_cat["csucs"].id == "Q897730" and by_cat["csucs"].osm == "n2"
     assert by_cat["kilato"].id == "n1" and by_cat["kilato"].wikidata is None
     assert [c["forras"] for c in conf.report.qid_conflicts] == ["osm:n1"]
+
+
+# -- tárgyra mutató QID-ek (szobor alakja, kiállított tárgy típusa, falu) -------------
+
+KECEL = (46.5260, 19.2520)
+
+
+def test_subject_qid_without_coords_is_stripped():
+    """A haditechnikai park T-34-ese a harckocsitípus QID-jét viseli (nincs helye)."""
+    conf, pois = run(
+        [
+            rec("osm", "n1", "T-34", *KECEL, cat="egyeb", wikidata="Q172233", huwiki="T–34"),
+            rec("wikidata", "Q172233", "T–34", wikidata="Q172233", huwiki="T–34", sitelinks=80),
+        ]
+    )
+    assert len(pois) == 1
+    p = pois[0]
+    assert p.id == "n1" and p.wikidata is None and p.huwiki is None
+    assert p.meta.get("sitelinks", 0) == 0
+    assert [s["s"] for s in p.sources] == ["osm"]
+    assert conf.report.subject_qids[0]["qid"] == "Q172233"
+
+
+def test_subject_qid_pointing_to_village_is_stripped():
+    """Egy kastély a falu QID-jét viseli: közel van, de más a neve."""
+    village = (47.0560, 16.7470)
+    conf, pois = run(
+        [
+            rec("osm", "n2", "Festetics-kastély", *village, cat="kastely", wikidata="Q9"),
+            rec("wikidata", "Q9", "Kisgyalán", village[0] + 0.006, village[1], wikidata="Q9", sitelinks=30),
+        ]
+    )
+    names = sorted(p.name for p in pois)
+    assert names == ["Festetics-kastély"]
+    assert pois[0].wikidata is None
+    assert conf.report.subject_qids[0]["ok"] == "más a neve"
+
+
+def test_subject_qid_far_away_is_stripped():
+    """A csúcs a tájegység (Bakony) QID-jét viseli, amelynek a pontja 20 km-re van."""
+    conf, pois = run(
+        [
+            rec("osm", "n3", "Bakony", 47.25, 17.80, cat="csucs", wikidata="Q8"),
+            rec("wikidata", "Q8", "Bakony", 47.25 + 0.18, 17.80, wikidata="Q8", sitelinks=40),
+        ]
+    )
+    assert [p.id for p in pois] == ["n3"]
+    assert conf.report.subject_qids[0]["ok"].endswith("m-re van")
+
+
+def test_uncategorized_qid_close_with_same_name_is_kept():
+    """Ha a Wikidata-elem besorolhatatlan, de ott van és ugyanaz a neve, a kapcsolat jó."""
+    conf, pois = run(
+        [
+            rec("osm", "w4", "Bory-vár", 47.2010, 18.4330, cat="kastely", wikidata="Q7"),
+            rec("wikidata", "Q7", "Bory-vár Múzeum", 47.2012, 18.4332, wikidata="Q7", sitelinks=12),
+        ]
+    )
+    assert [p.id for p in pois] == ["Q7"]
+    assert not conf.report.subject_qids
+
+
+def test_categorized_qid_with_other_name_is_kept():
+    """A besorolt elemhez (vár) nem nyúlunk, akkor sem, ha más a neve."""
+    conf, pois = run(
+        [
+            rec("osm", "w5", "Jurisics-vár", 47.3890, 16.5400, cat="var", wikidata="Q6"),
+            rec("wikidata", "Q6", "Kőszegi vár", 47.3891, 16.5401, cat="var", wikidata="Q6", sitelinks=15),
+        ]
+    )
+    assert [p.id for p in pois] == ["Q6"]
+    assert not conf.report.subject_qids
+
+
+def test_generic_osm_name_gives_way_to_real_name():
+    """„Jegypénztár” vagy „Vár”: a Wikidata valódi neve lesz a látnivaló neve."""
+    _, pois = run(
+        [
+            rec("osm", "n6", "Jegypénztár", 47.4410, 18.6050, cat="kert", wikidata="Q5"),
+            rec("wikidata", "Q5", "Alcsúti Arborétum", 47.4415, 18.6055, cat="kert", wikidata="Q5"),
+            rec("osm", "w7", "Vár", 47.4960, 19.0390, cat="var", wikidata="Q4"),
+            rec("wikidata", "Q4", "Budai Vár", 47.4962, 19.0392, cat="var", wikidata="Q4"),
+        ]
+    )
+    assert sorted(p.name for p in pois) == ["Alcsúti Arborétum", "Budai Vár"]
