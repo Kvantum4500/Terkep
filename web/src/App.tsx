@@ -4,6 +4,7 @@ import { formatCount } from './filters/text'
 import { parseHash, toHash } from './filters/urlState'
 import type { MapController } from './map/MapController'
 import { usePlanner } from './route/usePlanner'
+import { useTrackSync } from './track/useTrackSync'
 import { closeCard, currentLayer, onHistoryLayer, pushLayer, switchTab } from './state/actions'
 import { loadTrailIndex } from './trails/data'
 import { type Basemap, useStore } from './state/store'
@@ -15,6 +16,7 @@ import { PoiCard } from './ui/PoiCard'
 import { ResultList } from './ui/ResultList'
 import { RoutePanel } from './ui/RoutePanel'
 import { SHEET_HEIGHT, Sheet, type SheetState } from './ui/Sheet'
+import { TracksPanel } from './ui/TracksPanel'
 import { TrailCard } from './ui/TrailCard'
 import { UpdateToast } from './ui/UpdateToast'
 
@@ -52,12 +54,14 @@ export function App() {
   const panelOpen = useStore((s) => s.panelOpen)
   const pickRole = useStore((s) => s.pickRole)
   const hasRoute = useStore((s) => !!(s.route.plan.start || s.route.plan.end))
+  const recording = useStore((s) => s.rec.status === 'on')
   const { setData, setError, replaceFilters, select, setBasemap, setAboutOpen, setPanelOpen } = useStore.getState()
   const [sheet, setSheet] = useState<SheetState>('peek')
   const [dragH, setDragH] = useState<number | null>(null)
   const mapCtl = useRef<MapController | null>(null)
 
   usePlanner()
+  useTrackSync()
 
   // adatok betöltése + kezdeti állapot a URL-ből
   useEffect(() => {
@@ -205,7 +209,7 @@ export function App() {
     )
   }
 
-  const tabBtn = (t: 'filters' | 'list' | 'route', label: React.ReactNode) => (
+  const tabBtn = (t: 'filters' | 'list' | 'route' | 'tracks', label: React.ReactNode) => (
     <button
       type="button"
       role="tab"
@@ -231,6 +235,7 @@ export function App() {
         </>,
       )}
       {tabBtn('route', <>Útvonal{hasRoute && <span className="tab-dot" aria-label="(van útvonal)" />}</>)}
+      {tabBtn('tracks', <>Túrák{recording && <span className="tab-dot rec" aria-label="(rögzítés)" />}</>)}
     </div>
   )
 
@@ -279,6 +284,8 @@ export function App() {
             <FilterPanel />
           ) : tab === 'list' ? (
             <ResultList onPick={onPick} />
+          ) : tab === 'tracks' ? (
+            <TracksPanel onFit={(c) => void mapCtl.current?.fitLine(c)} />
           ) : (
             <RoutePanel onPick={onPick} />
           )}

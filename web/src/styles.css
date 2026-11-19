@@ -350,8 +350,18 @@ select {
 }
 
 .tab-count {
+  display: block;
   font-weight: 500;
+  font-size: 0.72rem;
+  line-height: 1.1;
   color: var(--text-2);
+}
+
+.tabs button {
+  font-size: 0.9rem;
+  line-height: 1.15;
+  padding-left: 4px;
+  padding-right: 4px;
 }
 
 /* --- szűrők ---------------------------------------------------------------------- */
@@ -1377,4 +1387,129 @@ input[type='checkbox'] {
 
 .trail-hits button:hover {
   background: var(--surface-2);
+}
+
+/* --- saját túrák ---------------------------------------------------------------- */
+.rec-box {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px;
+  background: var(--surface-2);
+}
+
+.btn.rec {
+  background: #e11d48;
+  border-color: #e11d48;
+  color: #fff;
+}
+
+.rec-stats {
+  margin: 0 0 6px;
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rec-dot,
+.tab-dot.rec {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #e11d48;
+  animation: blink 1.2s ease-in-out infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+.tracks-title {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-2);
+  margin: 14px 0 6px;
+}
+
+.track-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.track-list li {
+  border-bottom: 1px solid var(--border);
+  padding: 4px 0;
+}
+
+.track-list li.sel {
+  background: var(--surface-2);
+}
+
+.track-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding-left: 30px;
+}
+
+.track-swatch {
+  flex: none;
+  width: 22px;
+  height: 5px;
+  border-radius: 3px;
+  background: #7c3aed;
+}
+
+.editor-title {
+  font-size: 1.1rem;
+  margin: 4px 0 8px;
+}
+
+.howto {
+  padding-left: 20px;
+  font-size: 0.9rem;
+}
+
+.anchor-marker {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  border: 4px solid #7c3aed;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+  cursor: grab;
+}
+
+@media (pointer: coarse) {
+  .anchor-marker {
+    width: 30px;
+    height: 30px;
+  }
+}
+
+.progress-bar {
+  height: 10px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.progress-bar span {
+  display: block;
+  height: 100%;
+  background: #f59e0b;
+}
+
+.progress h3 {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-2);
+  margin: 12px 0 6px;
 }

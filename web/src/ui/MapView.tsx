@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react'
 import { MapController, type MapView as MapViewState, type RoutePointMarker } from '../map/MapController'
 import { openTrail, pointWaypoint, routeTo } from '../state/actions'
+import { addAnchorNear, moveAnchor, removeAnchor, trackLine } from '../track/controller'
+import { applyAnchors } from '../track/geom'
 import { loadTrailIndex, trailFeatures, trailIds } from '../trails/data'
 import { useStore } from '../state/store'
 
@@ -24,6 +26,11 @@ export function MapView({ onController }: { onController: (c: MapController | nu
   const compat = useStore((s) => s.compatMap)
   const trailFilter = useStore((s) => s.trailFilter)
   const selectedTrail = useStore((s) => s.selectedTrail)
+  const tracks = useStore((s) => s.tracks)
+  const trackSel = useStore((s) => s.trackSel)
+  const trackEdit = useStore((s) => s.trackEdit)
+  const recPoints = useStore((s) => s.rec.points)
+  const trailProgress = useStore((s) => s.trailProgress)
   const firstCounties = useRef(true)
   const lastView = useRef<MapViewState | undefined>(undefined)
 
@@ -47,6 +54,12 @@ export function MapView({ onController }: { onController: (c: MapController | nu
       onMapPoint: (role, p) => routeTo(pointWaypoint(p.lat, p.lon, p.poiId), role),
       onSelectAlt: (i) => useStore.getState().setRouteResult({ active: i }),
       onSelectTrail: (id) => openTrail(id),
+      onSelectTrack: (id) => {
+        const st = useStore.getState()
+        st.setTrackSel(id)
+        st.setTab('tracks')
+        if (!st.panelOpen) st.setPanelOpen(true)
+      },
     })
     ctl.current = c
     onController(c)
@@ -101,6 +114,43 @@ export function MapView({ onController }: { onController: (c: MapController | nu
       alive = false
     }
   }, [trailFilter, selectedTrail, compat])
+
+  // saját nyomvonalak
+  useEffect(() => {
+    void ctl.current?.setTracks({
+      type: 'FeatureCollection',
+      features: tracks.map((t) => ({
+        type: 'Feature',
+        geometry: { type: 'LineString', coordinates: trackLine(t) },
+        properties: { id: t.id, sel: t.id === trackSel || t.id === trackEdit },
+      })),
+    })
+  }, [tracks, trackSel, trackEdit, compat])
+
+  useEffect(() => {
+    void ctl.current?.setLiveTrack(recPoints.map((p) => [p.lon, p.lat]))
+  }, [recPoints, compat])
+
+  useEffect(() => {
+    void ctl.current?.setTrailDone(trailProgress?.done ?? [])
+  }, [trailProgress, compat])
+
+  // kézi igazítás: húzható rögzítési pontok
+  useEffect(() => {
+    const t = tracks.find((x) => x.id === trackEdit)
+    if (!t || !ctl.current) {
+      ctl.current?.setTrackEdit(null)
+      return
+    }
+    ctl.current.setTrackEdit(
+      { line: applyAnchors(t.points, t.anchors), anchors: t.anchors },
+      {
+        onAdd: (lon, lat) => void addAnchorNear(t.id, lon, lat),
+        onMove: (i, lon, lat) => void moveAnchor(t.id, i, lon, lat),
+        onRemove: (i) => void removeAnchor(t.id, i),
+      },
+    )
+  }, [tracks, trackEdit, compat])
 
   // kiválasztáskor ráközelítés
   useEffect(() => {

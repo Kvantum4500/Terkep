@@ -2,6 +2,9 @@ import { create } from 'zustand'
 import type { AppData } from '../data/load'
 import { applyFilters, DEFAULT_FILTERS, type FilterResult, type FilterState } from '../filters/filter'
 import { DEFAULT_PREFS, type RoutePrefs } from '../route/engine'
+import type { Track } from '../track/db'
+import type { TrackPoint } from '../track/geom'
+import type { Progress } from '../track/progress'
 import type { TrailFilter } from '../trails/data'
 import {
   addToPlan,
@@ -17,7 +20,16 @@ import {
 } from '../route/types'
 
 export type Basemap = 'topo' | 'osm' | 'sat' | 'none'
-export type SheetTab = 'filters' | 'list' | 'route'
+export type SheetTab = 'filters' | 'list' | 'route' | 'tracks'
+
+export interface RecState {
+  status: 'off' | 'on' | 'paused'
+  points: TrackPoint[]
+  started: number | null
+  error: string | null
+  /** a natív (háttérben is rögzítő) app fut-e */
+  native: boolean
+}
 
 export interface RouteState {
   plan: RoutePlan
@@ -59,6 +71,15 @@ interface State {
   selectedTrail: string | null
   /** turistaút-kereső szövege (a kártya megnyitása után is megmarad) */
   trailQuery: string
+  /** saját nyomvonalak (csak a készüléken) */
+  tracks: Track[]
+  /** kiemelt nyomvonal */
+  trackSel: string | null
+  /** szerkesztés (kézi igazítás) alatt álló nyomvonal */
+  trackEdit: string | null
+  rec: RecState
+  /** a kiválasztott turistaút teljesítése a saját nyomvonalak alapján */
+  trailProgress: Progress | null
   route: RouteState
   /** a következő térképkoppintás ezt a pontot állítja be */
   pickRole: Role | null
@@ -77,6 +98,13 @@ interface State {
   setTrailFilter: (patch: Partial<TrailFilter>) => void
   setSelectedTrail: (id: string | null) => void
   setTrailQuery: (q: string) => void
+  setTracks: (t: Track[]) => void
+  upsertTrack: (t: Track) => void
+  removeTrackLocal: (id: string) => void
+  setTrackSel: (id: string | null) => void
+  setTrackEdit: (id: string | null) => void
+  setRec: (patch: Partial<RecState>) => void
+  setTrailProgress: (p: Progress | null) => void
   addWaypoint: (wp: Waypoint, role: Role) => void
   removeWaypoint: (role: Role, viaIndex?: number) => void
   moveWaypoint: (viaIndex: number, dir: -1 | 1) => void
@@ -109,6 +137,11 @@ export const useStore = create<State>((set, get) => {
     trailFilter: { colors: [], shapes: [] },
     selectedTrail: null,
     trailQuery: '',
+    tracks: [],
+    trackSel: null,
+    trackEdit: null,
+    rec: { status: 'off', points: [], started: null, error: null, native: false },
+    trailProgress: null,
     route: ROUTE0,
     pickRole: null,
     setData: (data) => set({ data, result: compute(data, get().filters) }),
@@ -129,6 +162,21 @@ export const useStore = create<State>((set, get) => {
     setTrailFilter: (patch) => set({ trailFilter: { ...get().trailFilter, ...patch } }),
     setSelectedTrail: (selectedTrail) => set({ selectedTrail }),
     setTrailQuery: (trailQuery) => set({ trailQuery }),
+    setTracks: (tracks) => set({ tracks }),
+    upsertTrack: (t) => {
+      const others = get().tracks.filter((x) => x.id !== t.id)
+      set({ tracks: [t, ...others].sort((a, b) => b.created - a.created) })
+    },
+    removeTrackLocal: (id) =>
+      set({
+        tracks: get().tracks.filter((x) => x.id !== id),
+        trackSel: get().trackSel === id ? null : get().trackSel,
+        trackEdit: get().trackEdit === id ? null : get().trackEdit,
+      }),
+    setTrackSel: (trackSel) => set({ trackSel }),
+    setTrackEdit: (trackEdit) => set({ trackEdit }),
+    setRec: (patch) => set({ rec: { ...get().rec, ...patch } }),
+    setTrailProgress: (trailProgress) => set({ trailProgress }),
     addWaypoint: (wp, role) => setPlan(addToPlan(get().route.plan, wp, role)),
     removeWaypoint: (role, viaIndex) => setPlan(removeFromPlan(get().route.plan, role, viaIndex)),
     moveWaypoint: (i, dir) => setPlan(moveVia(get().route.plan, i, dir)),

@@ -4,6 +4,7 @@
 import {
   type GeoJSONSource,
   GeolocateControl,
+  Marker,
   LngLatBounds,
   type LngLatBoundsLike,
   type MapGeoJSONFeature,
@@ -71,6 +72,15 @@ export interface MapControllerOptions {
   onSelectAlt?: (i: number) => void
   /** turistaút-vonalra koppintás */
   onSelectTrail?: (id: string) => void
+  /** saját nyomvonalra koppintás */
+  onSelectTrack?: (id: string) => void
+}
+
+export interface TrackEditCallbacks {
+  /** hosszú nyomás / jobb klikk a szerkesztett vonalon */
+  onAdd: (lon: number, lat: number) => void
+  onMove: (i: number, lon: number, lat: number) => void
+  onRemove: (i: number) => void
 }
 
 export interface RoutePointMarker {
@@ -92,6 +102,7 @@ export class MapController {
   private popup: Popup | null = null
   private pressTimer: ReturnType<typeof setTimeout> | null = null
   private opts: MapControllerOptions
+  private edit: { line: [number, number][]; markers: Marker[]; cb: TrackEditCallbacks } | null = null
 
   constructor(opts: MapControllerOptions) {
     this.opts = opts
@@ -177,8 +188,8 @@ export class MapController {
         opts.onPick?.(this.pointAt(e))
         return
       }
-      // turistaút-vonal (ha nem egy látnivalóra koppintott)
-      if (!opts.onSelectTrail || !this.map.getLayer('trail-line')) return
+      // saját nyomvonal vagy turistaút-vonal (ha nem egy látnivalóra koppintott)
+      if (this.edit) return
       const r = 6
       const box: [[number, number], [number, number]] = [
         [e.point.x - r, e.point.y - r],
@@ -186,8 +197,13 @@ export class MapController {
       ]
       const poi = this.map.queryRenderedFeatures(box, { layers: POI_LAYERS.filter((l) => this.map.getLayer(l)) })
       if (poi.length) return
+      const tk = this.map.queryRenderedFeatures(box, { layers: ['track-line'] })
+      if (tk[0] && opts.onSelectTrack) {
+        opts.onSelectTrack(String(tk[0].properties.id))
+        return
+      }
       const tr = this.map.queryRenderedFeatures(box, { layers: ['trail-line'] })
-      if (tr[0]) opts.onSelectTrail(String(tr[0].properties.id))
+      if (tr[0] && opts.onSelectTrail) opts.onSelectTrail(String(tr[0].properties.id))
     })
 
     // hosszú nyomás (érintés) és jobb klikk: útvonalpont-menü
@@ -231,6 +247,11 @@ export class MapController {
   }
 
   private openPointMenu(e: MapMouseEvent | MapTouchEvent): void {
+    // nyomvonal-szerkesztésnél a vonalon hosszan nyomva rögzítési pont jön létre
+    if (this.edit && this.nearEditLine(e.point.x, e.point.y, 28)) {
+      this.edit.cb.onAdd(e.lngLat.lng, e.lngLat.lat)
+      return
+    }
     if (!this.opts.onMapPoint) return
     const p = this.pointAt(e)
     this.popup?.remove()
@@ -392,6 +413,93 @@ export class MapController {
     )
   }
 
+  async setTracks(fc: GeoJSON.FeatureCollection): Promise<void> {
+    await this.ready
+    ;(this.map.getSource('tracks') as GeoJSONSource).setData(fc)
+  }
+
+  async setLiveTrack(coords: [number, number][]): Promise<void> {
+    await this.ready
+    ;(this.map.getSource('track-live') as GeoJSONSource).setData({
+      type: 'FeatureCollection',
+      features:
+        coords.length > 1 ? [{ type: 'Feature', geometry: { type: 'LineString', coordinates: coords }, properties: {} }] : [],
+    })
+  }
+
+  async setTrailDone(lines: [number, number][][]): Promise<void> {
+    await this.ready
+    ;(this.map.getSource('trail-done') as GeoJSONSource).setData({
+      type: 'FeatureCollection',
+      features: lines.length
+        ? [{ type: 'Feature', geometry: { type: 'MultiLineString', coordinates: lines }, properties: {} }]
+        : [],
+    })
+  }
+
+  /** Nyomvonal-szerkesztés: húzható rögzítési pontok; a vonalon hosszan nyomva új pont. */
+  setTrackEdit(
+    state: { line: [number, number][]; anchors: { i: number; lon: number; lat: number }[] } | null,
+    cb?: TrackEditCallbacks,
+  ): void {
+    for (const m of this.edit?.markers ?? []) m.remove()
+    if (!state || !cb) {
+      this.edit = null
+      return
+    }
+    const markers = state.anchors.map((a) => {
+      const el = document.createElement('div')
+      el.className = 'anchor-marker'
+      el.setAttribute('data-testid', 'anchor-marker')
+      el.title = 'Húzd a helyes helyre; koppintva törölhető'
+      const m = new Marker({ element: el, draggable: true }).setLngLat([a.lon, a.lat]).addTo(this.map)
+      m.on('dragend', () => {
+        const p = m.getLngLat()
+        cb.onMove(a.i, p.lng, p.lat)
+      })
+      el.addEventListener('click', (ev) => {
+        ev.stopPropagation()
+        const box = document.createElement('div')
+        box.className = 'point-menu'
+        const b = document.createElement('button')
+        b.type = 'button'
+        b.textContent = 'Rögzítési pont törlése'
+        b.setAttribute('data-testid', 'anchor-remove')
+        b.addEventListener('click', () => {
+          this.popup?.remove()
+          cb.onRemove(a.i)
+        })
+        box.appendChild(b)
+        this.popup?.remove()
+        this.popup = new Popup({ offset: 14, closeButton: true }).setLngLat(m.getLngLat()).setDOMContent(box).addTo(this.map)
+      })
+      return m
+    })
+    this.edit = { line: state.line, markers, cb }
+  }
+
+  /** A pont (képernyő-koordináta) közel van-e a szerkesztett vonalhoz. */
+  private nearEditLine(x: number, y: number, maxPx: number): boolean {
+    const line = this.edit?.line ?? []
+    let prev: { x: number; y: number } | null = null
+    for (const c of line) {
+      const p = this.map.project(c)
+      if (prev) {
+        const vx = p.x - prev.x
+        const vy = p.y - prev.y
+        const len2 = vx * vx + vy * vy
+        const t = len2 ? Math.max(0, Math.min(1, ((x - prev.x) * vx + (y - prev.y) * vy) / len2)) : 0
+        if (Math.hypot(x - (prev.x + t * vx), y - (prev.y + t * vy)) <= maxPx) return true
+      }
+      prev = p
+    }
+    return false
+  }
+
+  async fitLine(coords: [number, number][]): Promise<void> {
+    return this.fitRoute(coords)
+  }
+
   setPickMode(on: boolean): void {
     this.pickMode = on
     this.map.getCanvas().style.cursor = on ? 'crosshair' : ''
@@ -428,6 +536,7 @@ export class MapController {
 
   destroy(): void {
     this.cancelPress()
+    for (const m of this.edit?.markers ?? []) m.remove()
     this.popup?.remove()
     this.map.remove()
   }

@@ -77,6 +77,10 @@ async function mockServices(page: Page) {
       headers: { 'Access-Control-Allow-Origin': '*' },
     }),
   )
+  // térképi illesztés (nyomvonal): alapból hiba -> helyi ráillesztés (determinisztikus)
+  await page.route('https://valhalla1.openstreetmap.de/trace_route', (route) =>
+    route.fulfill({ status: 503, body: 'nem elérhető', headers: { 'Access-Control-Allow-Origin': '*' } }),
+  )
   // beágyazott Google-utcakép (a tesztbuildben kamu kulccsal)
   await page.route('https://www.google.com/maps/embed/**', (route) =>
     route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>utcakép</title><p>Google utcakép (teszt)</p>' }),
@@ -427,39 +431,49 @@ test('vibrálás ellen: a lap nem görget, mozgatáskor a térkép nem méretez�
 
 test('kompatibilis mód: a térkép megőrzött rajzpufferrel újraépül, a nézet és a pontok maradnak', async ({ page }) => {
   await mockServices(page)
-  await open(page, '#m=BZ')
-  // a vármegyére közelítés animációjának vége
-  const zoomNow = () =>
-    page.evaluate(() => (window as unknown as { __terkepMap: { getZoom: () => number } }).__terkepMap.getZoom())
-  let before = await zoomNow()
+  await open(page)
   await expect
-    .poll(async () => {
-      const z = await zoomNow()
-      const stable = Math.abs(z - before) < 1e-6
-      before = z
-      return stable
-    }, { intervals: [300] })
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (window as unknown as { __terkepMap: { querySourceFeatures: (s: string) => unknown[] } }).__terkepMap.querySourceFeatures('pois')
+            .length > 0,
+      ),
+    )
     .toBe(true)
+  // ismert nézet
+  await page.evaluate(() =>
+    (window as unknown as { __terkepMap: { jumpTo: (o: object) => void } }).__terkepMap.jumpTo({ center: [19.5, 47.5], zoom: 9 }),
+  )
   await page.getByTestId('layers-btn').click()
   await page.getByTestId('compat-map').check()
   const attrs = () =>
     page.evaluate(() => {
       const m = (
         window as unknown as {
-          __terkepMap: { getCanvas: () => HTMLCanvasElement; getZoom: () => number; querySourceFeatures: (s: string) => unknown[] }
+          __terkepMap: {
+            getCanvas: () => HTMLCanvasElement
+            getZoom: () => number
+            getCenter: () => { lng: number; lat: number }
+            querySourceFeatures: (s: string) => unknown[]
+          }
         }
       ).__terkepMap
       const gl = m.getCanvas().getContext('webgl2')
       return {
         preserve: gl?.getContextAttributes()?.preserveDrawingBuffer ?? null,
         zoom: m.getZoom(),
+        lng: m.getCenter().lng,
+        lat: m.getCenter().lat,
         pois: m.querySourceFeatures('pois').length > 0,
       }
     })
   await expect.poll(async () => (await attrs()).preserve).toBe(true)
   await expect.poll(async () => (await attrs()).pois).toBe(true)
-  // a nézet megmarad (a maxBounds-korlát miatt legfeljebb kicsit közelebb)
-  expect(Math.abs((await attrs()).zoom - before)).toBeLessThan(1)
+  const a = await attrs()
+  expect(a.zoom).toBeCloseTo(9, 2)
+  expect(a.lng).toBeCloseTo(19.5, 3)
+  expect(a.lat).toBeCloseTo(47.5, 3)
   // megmarad újratöltés után is
   await page.reload()
   await expect(page.getByTestId('result-count')).toBeVisible()
@@ -572,4 +586,149 @@ test('turistautak: csak a kék jelzés, név szerinti keresés, szakaszok, Vissz
   await card.getByRole('button', { name: /Visegrád – Dobogókő/ }).click()
   await card.getByRole('button', { name: 'Bezárás' }).click()
   await expect(card).toBeHidden()
+})
+
+
+// --- saját túrák -------------------------------------------------------------------
+
+const KT1: [number, number][] = [
+  [18.9811, 47.7942],
+  [18.975, 47.785],
+  [18.962, 47.772],
+  [18.95, 47.76],
+  [18.93, 47.745],
+  [18.91, 47.73],
+  [18.8957, 47.7186],
+]
+
+function gpx(name: string, pts: [number, number][]): string {
+  return `<?xml version="1.0"?><gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1"><trk><name>${name}</name><trkseg>${pts
+    .map(([lon, lat], k) => `<trkpt lat="${lat}" lon="${lon}"><ele>${300 + k * 20}</ele><time>2026-05-01T08:${String(k).padStart(2, '0')}:00Z</time></trkpt>`)
+    .join('')}</trkseg></trk></gpx>`
+}
+
+async function trackData(page: Page) {
+  return page.evaluate(async () => {
+    const m = (window as unknown as { __terkepMap: { getSource: (s: string) => { getData: () => Promise<GeoJSON.FeatureCollection> } } })
+      .__terkepMap
+    const fc = await m.getSource('tracks').getData()
+    return fc.features.map((f) => (f.geometry as GeoJSON.LineString).coordinates)
+  })
+}
+
+test('túra rögzítése (mockolt GPS), mentés a készülékre, megmarad újratöltés után', async ({ page, context }) => {
+  await context.grantPermissions(['geolocation'])
+  await context.setGeolocation({ latitude: 47.7, longitude: 19.0, accuracy: 5 })
+  await mockServices(page)
+  await open(page)
+  await page.getByTestId('tab-tracks').click()
+  await page.getByTestId('rec-start').click()
+  const stats = page.getByTestId('rec-stats')
+  await expect(stats).toContainText('Rögzítés')
+  await expect(stats).toContainText('1 pont')
+  for (let k = 1; k <= 4; k++) {
+    await context.setGeolocation({ latitude: 47.7 + k * 0.001, longitude: 19.0, accuracy: 5 })
+    await expect(stats).toContainText(`${k + 1} pont`)
+  }
+  // pontatlan pont: kimarad
+  await context.setGeolocation({ latitude: 47.71, longitude: 19.01, accuracy: 120 })
+  await page.waitForTimeout(800)
+  await expect(stats).toContainText('5 pont')
+  await page.getByTestId('rec-finish').click()
+  const row = page.getByTestId('track-row')
+  await expect(row).toHaveCount(1)
+  await expect(row).toContainText(/0[,.]4 km/)
+  await page.reload()
+  await page.getByTestId('tab-tracks').click()
+  await expect(page.getByTestId('track-row')).toHaveCount(1)
+})
+
+test('GPX betöltése -> a Kéktúra teljesítése a turistaút-kártyán', async ({ page }) => {
+  await mockServices(page)
+  await open(page)
+  await page.getByTestId('tab-tracks').click()
+  await page.getByTestId('gpx-import').setInputFiles({
+    name: 'visegrad-dobogoko.gpx',
+    mimeType: 'application/gpx+xml',
+    buffer: Buffer.from(gpx('Visegrád – Dobogókő', KT1.map(([lon, lat]) => [lon + 0.0001, lat]))),
+  })
+  await expect(page.getByTestId('track-row')).toContainText('Visegrád – Dobogókő')
+  await expect.poll(async () => (await trackData(page)).length).toBe(1)
+
+  await page.getByTestId('tab-filters').click()
+  await page.getByTestId('trail-search').fill('kektura')
+  await page.getByTestId('trail-hit').first().click()
+  const text = page.getByTestId('trail-progress-text')
+  await expect(text).toBeVisible()
+  const pct = Number((await text.locator('strong').innerText()).replace('%', '').replace(',', '.'))
+  // 10,6 km a 16,2-ből
+  expect(pct).toBeGreaterThan(60)
+  expect(pct).toBeLessThan(70)
+  await expect
+    .poll(() =>
+      page.evaluate(async () => {
+        const m = (window as unknown as { __terkepMap: { getSource: (s: string) => { getData: () => Promise<GeoJSON.FeatureCollection> } } })
+          .__terkepMap
+        return (await m.getSource('trail-done').getData()).features.length
+      }),
+    )
+    .toBe(1)
+})
+
+test('kézi igazítás: jobb klikk a vonalon -> rögzítési pont, áthúzva a vonal követi; ráillesztés ki/be', async ({ page }, info) => {
+  test.skip(info.project.name !== 'asztali', 'egérrel')
+  const calls = await mockServices(page)
+  void calls
+  await open(page)
+  await page.getByTestId('tab-tracks').click()
+  // egyenes, 11 pontos nyomvonal a minta Kéktúrától távol (nincs mire ráilleszteni)
+  const line: [number, number][] = Array.from({ length: 11 }, (_, k) => [19.3, 47.3 + k * 0.001])
+  await page.getByTestId('gpx-import').setInputFiles({ name: 'egyenes.gpx', mimeType: 'application/gpx+xml', buffer: Buffer.from(gpx('Egyenes', line)) })
+  await expect(page.getByTestId('track-row')).toHaveCount(1)
+  await page.getByTestId('track-edit').click()
+  await expect(page.getByTestId('track-editor')).toBeVisible()
+  await page.waitForTimeout(900) // ráközelítés
+  // a vonal közepe a képernyőn
+  const mid = await page.evaluate(() => {
+    const m = (window as unknown as { __terkepMap: { project: (c: [number, number]) => { x: number; y: number }; getContainer: () => HTMLElement } })
+      .__terkepMap
+    const p = m.project([19.3, 47.305])
+    const r = m.getContainer().getBoundingClientRect()
+    return { x: r.left + p.x, y: r.top + p.y }
+  })
+  await page.mouse.click(mid.x, mid.y, { button: 'right' })
+  await expect(page.getByTestId('anchor-marker')).toHaveCount(1)
+  await expect(page.getByTestId('anchor-count')).toContainText('1')
+  // áthúzás 80 px-szel jobbra
+  await page.mouse.move(mid.x, mid.y)
+  await page.mouse.down()
+  for (let i = 1; i <= 8; i++) await page.mouse.move(mid.x + i * 10, mid.y)
+  await page.mouse.up()
+  await expect
+    .poll(async () => {
+      const [c] = await trackData(page)
+      return { start: c[0][0], mid: c[5][0] > 19.3005, end: c[10][0] }
+    })
+    .toEqual({ start: 19.3, mid: true, end: 19.3 })
+
+  // ráillesztés: a mockolt Valhalla egy ismert vonalat ad -> az jelenik meg; kikapcsolva a kézi marad
+  await page.route('https://valhalla1.openstreetmap.de/trace_route', (route) =>
+    route.fulfill({
+      json: { trip: { legs: [{ shape: encode([[19.31, 47.3], [19.31, 47.31]]) }] } },
+      headers: { 'Access-Control-Allow-Origin': '*' },
+    }),
+  )
+  await page.getByTestId('track-snap').uncheck()
+  await page.getByTestId('track-snap').check()
+  await expect.poll(async () => (await trackData(page))[0][0][0]).toBeCloseTo(19.31, 5)
+  await page.getByTestId('track-snap').uncheck()
+  await expect.poll(async () => (await trackData(page))[0][0][0]).toBeCloseTo(19.3, 5)
+  await page.screenshot({ path: info.outputPath('igazitas.png') })
+
+  // pont törlése koppintással
+  await page.getByTestId('anchor-marker').click()
+  await page.getByTestId('anchor-remove').click()
+  await expect(page.getByTestId('anchor-marker')).toHaveCount(0)
+  await page.getByTestId('track-edit-done').click()
+  await expect(page.getByTestId('tracks-panel')).toBeVisible()
 })

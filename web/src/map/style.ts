@@ -56,6 +56,9 @@ export function buildStyle(glyphs: string): StyleSpecification {
       route: { type: 'geojson', data: EMPTY },
       'route-pts': { type: 'geojson', data: EMPTY },
       'trail-lines': { type: 'geojson', data: EMPTY },
+      'trail-done': { type: 'geojson', data: EMPTY },
+      tracks: { type: 'geojson', data: EMPTY },
+      'track-live': { type: 'geojson', data: EMPTY },
     },
     layers: [
       { id: 'bg', type: 'background', paint: { 'background-color': '#eef0e8' } },
@@ -83,6 +86,14 @@ export function buildStyle(glyphs: string): StyleSpecification {
           'line-opacity': 0.8,
           'line-dasharray': [3, 1.5],
         },
+      },
+      {
+        // a kiválasztott turistaút teljesített részei: széles narancs kiemelés a vonal alatt
+        id: 'trail-done',
+        type: 'line',
+        source: 'trail-done',
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: { 'line-color': '#f59e0b', 'line-width': 14, 'line-opacity': 0.6 },
       },
       {
         id: 'trail-casing',
@@ -128,6 +139,27 @@ export function buildStyle(glyphs: string): StyleSpecification {
         filter: ['get', 'active'],
         layout: { 'line-join': 'round', 'line-cap': 'round' },
         paint: { 'line-color': '#2563eb', 'line-width': 5.5 },
+      },
+      {
+        id: 'track-casing',
+        type: 'line',
+        source: 'tracks',
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: { 'line-color': '#ffffff', 'line-width': ['case', ['get', 'sel'], 8, 5] },
+      },
+      {
+        id: 'track-line',
+        type: 'line',
+        source: 'tracks',
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: { 'line-color': '#7c3aed', 'line-width': ['case', ['get', 'sel'], 5, 3] },
+      },
+      {
+        id: 'track-live',
+        type: 'line',
+        source: 'track-live',
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: { 'line-color': '#e11d48', 'line-width': 4.5 },
       },
       {
         id: 'poi-dots',

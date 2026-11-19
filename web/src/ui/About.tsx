@@ -60,8 +60,11 @@ export function About() {
         <li>Alaptérkép: OpenTopoMap (CC BY-SA), OpenStreetMap; turistautak: Waymarked Trails (CC BY-SA)</li>
         <li>Műholdkép: Esri World Imagery (© Esri, Maxar, Earthstar Geographics, GIS User Community)</li>
         <li>
-          Útvonaltervezés: Valhalla és OSRM a FOSSGIS e.V. szerverein (openstreetmap.de), OpenStreetMap-adatokból. A
-          tervezett útvonal csak ezen a készüléken marad.
+          Útvonaltervezés és a nyomvonalak ráillesztése: Valhalla és OSRM a FOSSGIS e.V. szerverein (openstreetmap.de),
+          OpenStreetMap-adatokból. A tervezett útvonal és a saját túrák csak ezen a készüléken maradnak.
+        </li>
+        <li>
+          Jelzett turistautak: © OpenStreetMap közreműködők (ODbL)
         </li>
         <li>
           360°-os képek: Google utcakép (Maps Embed API), Wikimedia Commons és Wikidata (a szerzők licencével),

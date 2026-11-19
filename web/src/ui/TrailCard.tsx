@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
 import { closeTrail, openTrail } from '../state/actions'
+import { useStore } from '../state/store'
 import { COLOR_LABEL, loadTrailIndex, NETWORK_LABEL, SHAPE_LABEL, type TrailIndex } from '../trails/data'
 import { MarkIcon } from './MarkIcon'
 
 /** A kiválasztott turistaút adatai: jelzés, hossz, szakaszok (és később a teljesítés). */
 export function TrailCard({ id, onFit }: { id: string; onFit: () => void }) {
   const [idx, setIdx] = useState<TrailIndex | null>(null)
+  const progress = useStore((s) => s.trailProgress)
+  const nTracks = useStore((s) => s.tracks.length)
   useEffect(() => {
     let alive = true
     void loadTrailIndex().then((i) => alive && setIdx(i))
@@ -47,6 +50,26 @@ export function TrailCard({ id, onFit }: { id: string; onFit: () => void }) {
           Ráközelítés
         </button>
       </div>
+      <section className="progress" data-testid="trail-progress">
+        <h3>Teljesítés</h3>
+        {nTracks === 0 ? (
+          <p className="hint">Rögzíts vagy tölts be túrát (Túrák fül), és itt látod, mennyit jártál be belőle.</p>
+        ) : progress ? (
+          <>
+            <div className="progress-bar" aria-hidden="true">
+              <span style={{ width: `${Math.min(100, progress.pct)}%` }} />
+            </div>
+            <p data-testid="trail-progress-text">
+              <strong>{progress.pct.toLocaleString('hu-HU')}%</strong> teljesítve ·{' '}
+              {progress.doneKm.toLocaleString('hu-HU', { maximumFractionDigits: 1 })} /{' '}
+              {progress.totalKm.toLocaleString('hu-HU', { maximumFractionDigits: 1 })} km
+            </p>
+            <p className="hint">A térképen narancs kiemelés jelzi a bejárt részeket (40 m-es tűréssel).</p>
+          </>
+        ) : (
+          <p className="hint">Számolás…</p>
+        )}
+      </section>
       {parent && (
         <p>
           Része ennek:{' '}

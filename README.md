@@ -25,6 +25,13 @@ egészségadatok (Samsung Health / Health Connect), AI-asszisztens.
 - **Útválasztás:** autóút nélkül / kis forgalmú utak / bármilyen út / legrövidebb
   (autóval: leggyorsabb / autópálya nélkül / legrövidebb), és kiírja, mennyi az útból a közút.
 - **Ha a térkép vibrál** (egyes Samsung-telefonokon): Rétegek → *Kompatibilis mód*.
+- **Jelzett turistautak:** Szűrők → *Jelzett turistautak*: csak a kiválasztott jelzés (pl.
+  kék sáv, sárga kereszt) a térképen; keresés név szerint (pl. Kéktúra), szakaszokkal.
+- **Saját túrák** (Túrák fül): GPS-rögzítés, GPX-betöltés (Samsung Health, Strava…),
+  **kézi igazítás** (a vonalon hosszan nyomva rögzítési pont, ami a helyes helyre húzható),
+  **igazítás a valószínű útra** (kikapcsolható), GPX-mentés. A turistaút-kártya mutatja,
+  **hány százalékát jártad be** (a bejárt részek narancs kiemeléssel). Minden túra csak a
+  készüléken tárolódik.
 - **Vissza gomb:** Androidon a kártyát és az útvonal-nézetet zárja be, nem lép ki az appból.
 - **Telepíthető app (PWA):** Androidon (Samsung Internet / Chrome: „Hozzáadás a
   kezdőképernyőhöz”) és Windowson (Edge / Chrome: „Alkalmazás telepítése”) is
