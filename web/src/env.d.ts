@@ -3,6 +3,8 @@ interface ImportMetaEnv {
   readonly VITE_MAPILLARY_TOKEN?: string
   /** Google Maps Embed API böngészőkulcs (a Pages-címre korlátozva); ha üres, az utcakép külső linkként nyílik. */
   readonly VITE_GOOGLE_MAPS_EMBED_KEY?: string
+  /** natív (Capacitor) build: nincs service worker */
+  readonly VITE_NATIVE?: string
 }
 
 interface ImportMeta {

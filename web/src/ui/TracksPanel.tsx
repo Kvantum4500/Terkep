@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import { formatDuration, formatKm } from '../route/engine'
+import { isNative, saveTextFile } from '../native/files'
 import { useStore } from '../state/store'
 import {
   discardRecording,
@@ -17,14 +18,7 @@ import { trackStats } from '../track/geom'
 import { trackToGpx } from '../track/gpx'
 
 function download(name: string, text: string) {
-  const blob = new Blob([text], { type: 'application/gpx+xml' })
-  const a = document.createElement('a')
-  a.href = URL.createObjectURL(blob)
-  a.download = `${name.replace(/[^\p{L}\p{N} _.-]+/gu, '').trim() || 'tura'}.gpx`
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000)
+  void saveTextFile(`${name.replace(/[^\p{L}\p{N} _.-]+/gu, '').trim() || 'tura'}.gpx`, text, 'application/gpx+xml')
 }
 
 /** Saját túrák: rögzítés, GPX-betöltés, lista, kézi igazítás. Minden csak a készüléken marad. */
@@ -63,8 +57,8 @@ export function TracksPanel({ onFit }: { onFit: (coords: [number, number][]) => 
               ● Rögzítés indítása
             </button>
             <p className="hint">
-              {rec.native
-                ? 'Az app a háttérben és lezárt képernyőnél is rögzít.'
+              {rec.native || isNative()
+                ? 'Az app a háttérben és lezárt képernyőnél is rögzít (értesítés jelzi).'
                 : 'A böngészőben csak bekapcsolt képernyővel rögzít (a képernyő ébren marad). Az Android-appban a háttérben is.'}
             </p>
           </>

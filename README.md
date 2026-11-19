@@ -43,6 +43,21 @@ egészségadatok (Samsung Health / Health Connect), AI-asszisztens.
 > **Adatfrissítés** workflow tölti le, lásd lent). A tesztek a kézzel összeállított
 > mintaadaton (`data/sample/`, 132 ismert látnivaló) futnak.
 
+## Android-app (APK, Play Áruház nélkül)
+
+A natív app ugyanaz, mint a weboldal, de **a túrát a háttérben és lezárt képernyőnél is
+rögzíti** (értesítés jelzi), és minden adat az APK-ban van (offline is megy).
+
+1. A telefonon nyisd meg:
+   `https://github.com/Kvantum4500/Terkep/releases/download/android-latest/terkep.apk`
+2. Töltsd le, nyisd meg, és engedélyezd a böngészőnek az „ismeretlen forrásból származó
+   alkalmazások” telepítését → *Telepítés*.
+3. Az első rögzítéskor engedélyezd a helymeghatározást és az értesítéseket.
+4. **Samsungon** (különben az akkumulátorkímélő leállíthatja a háttérben futó rögzítést):
+   Beállítások → Alkalmazások → Látnivalók → Akkumulátor → **Korlátlan**.
+5. Frissítés: ugyanazt a linket töltsd le újra, és telepítsd a régire – a mentett túrák
+   megmaradnak.
+
 ## Teendők a repó gazdájának
 
 1. **Repó nyilvánossá tétele:** Settings → General → Danger Zone → Change visibility.
@@ -71,7 +86,12 @@ egészségadatok (Samsung Health / Health Connect), AI-asszisztens.
       `GOOGLE_MAPS_SERVER_KEY`. Az adatfrissítés ezzel nézi meg, melyik látnivalónál van
       utcakép (a metaadat-lekérés ingyenes).
    4. Utána futtasd az *Adatfrissítés* workflow-t.
-6. **Valós adat:** Actions → *Adatfrissítés* → Run workflow. Kb. 1–2 óra; a végén PR
+6. **Android-app aláírása:** az aláíró kulcsot (PKCS12) és a jelszavát két titokként kell
+   megadni: Settings → Secrets and variables → Actions → **Secrets** →
+   `ANDROID_KEYSTORE_BASE64` (a kulcsfájl base64-ben) és `ANDROID_KEYSTORE_PASSWORD`. Ezzel
+   minden frissítés után aláírt APK kerül az *android-latest* kiadásba (Actions →
+   *Android-app*). A kulcsot őrizd meg: új kulccsal az app csak törlés után telepíthető újra.
+7. **Valós adat:** Actions → *Adatfrissítés* → Run workflow. Kb. 1–2 óra; a végén PR
    nyílik a friss `data/` könyvtárral és egy riporttal (vármegyénkénti top 15,
    bizonytalan párosítások). A túraoldalak felderítési riportja az artifactok között van.
 

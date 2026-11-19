@@ -4,6 +4,7 @@ import { applyFilters } from '../filters/filter'
 import { ENGINE_CREDIT, formatDuration, formatKm, googleDirectionsUrl, type RoadShare, roadShare } from '../route/engine'
 import { poisAlongRoute, toGpx } from '../route/geo'
 import { CAR_PREFS, planPoints, PROFILE_LABEL, type Profile, ROAD_PREFS, type Role, type Waypoint } from '../route/types'
+import { saveTextFile } from '../native/files'
 import { locateMe, poiWaypoint } from '../state/actions'
 import { useStore } from '../state/store'
 import { CategoryIcon } from './CategoryIcon'
@@ -66,14 +67,7 @@ export function RoutePanel({ onPick }: { onPick: (id: string) => void }) {
   const downloadGpx = () => {
     if (!alt || !pts) return
     const name = `${pts[0].name} – ${pts[pts.length - 1].name}`
-    const blob = new Blob([toGpx(name, alt.coords, pts)], { type: 'application/gpx+xml' })
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(blob)
-    a.download = `utvonal-${new Date().toISOString().slice(0, 10)}.gpx`
-    document.body.appendChild(a)
-    a.click()
-    a.remove()
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000)
+    void saveTextFile(`utvonal-${new Date().toISOString().slice(0, 10)}.gpx`, toGpx(name, alt.coords, pts), 'application/gpx+xml')
   }
 
   return (

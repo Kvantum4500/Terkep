@@ -12,6 +12,13 @@ export function nativeRecorder(): Recorder {
   return {
     native: true,
     async start(onPoint, onError) {
+      // Android 13-tól az előtérszolgáltatás értesítéséhez engedély kell
+      try {
+        const { LocalNotifications } = await import('@capacitor/local-notifications')
+        await LocalNotifications.requestPermissions()
+      } catch {
+        /* engedély nélkül is rögzít, csak az értesítés nem látszik */
+      }
       id = await BackgroundGeolocation.addWatcher(
         {
           backgroundTitle: 'Túra rögzítése',
