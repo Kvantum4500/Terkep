@@ -193,6 +193,14 @@ class PoliteClient:
             return resp
         raise RuntimeError(f"Sikertelen letöltés: {full_url}: {last_exc}")
 
+    def forget(
+        self, method: str, url: str, data: dict | str | None = None, params: dict | None = None
+    ) -> None:
+        """Egy gyorsítótárazott válasz törlése (pl. ha 200-as státusszal, de hibás tartalommal jött)."""
+        full_url = requests.Request(method, url, params=params).prepare().url or url
+        body = json.dumps(data, sort_keys=True) if isinstance(data, dict) else data
+        self._cache_path(method, full_url, body).unlink(missing_ok=True)
+
     def get(self, url: str, params: dict | None = None, headers: dict | None = None, **kw) -> Response:
         return self._fetch("GET", url, params=params, headers=headers, **kw)
 

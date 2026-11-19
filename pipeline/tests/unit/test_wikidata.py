@@ -182,3 +182,47 @@ def test_photosphere_p4640_becomes_pano_flag():
     assert poi.pano == "Visegrád 360.jpg"
     assert poi.flags & FLAG_PANO
     assert poi.to_json()["pano"] == "Visegrád 360.jpg"
+
+
+def test_truncated_200_response_splits_and_is_not_cached(tmp_path):
+    """A WDQS időtúllépéskor 200-zal, csonka JSON-nal is válaszolhat (8. futás után a 10.)."""
+    import re
+
+    from terkep_pipeline.http import PoliteClient
+    from terkep_pipeline.sources.wikidata import discover
+
+    class Session:
+        def __init__(self):
+            self.sizes = []
+
+        def request(self, method, url, data=None, **kw):
+            classes = re.search(r"VALUES \?class \{([^}]*)\}", data["query"]).group(1).split()
+            self.sizes.append(len(classes))
+
+            class R:
+                status_code = 200
+                headers = {}
+
+            if len(classes) > 2:
+                R.text = '{"results": {"bindings": [{"item": {"type": "uri", "value": "x\u0001'
+            else:
+                R.text = json.dumps(
+                    {
+                        "results": {
+                            "bindings": [{"item": {"type": "uri", "value": E + c[3:] + "0"}} for c in classes]
+                        }
+                    }
+                )
+            return R()
+
+    import json
+
+    c = PoliteClient(cache_dir=tmp_path, default_interval_s=0)
+    c.session = Session()
+    c.mark_api_host("query.wikidata.org")
+    found, skipped = discover(c, [f"Q{i}" for i in range(1, 5)])
+    assert found == {f"Q{i}0" for i in range(1, 5)} and skipped == []
+    # a csonka válasz nem maradt a gyorsítótárban: újrafuttatva ismét lekéri (és ismét feloszt)
+    before = len(c.session.sizes)
+    discover(c, [f"Q{i}" for i in range(1, 5)])
+    assert c.session.sizes[before] == 4

@@ -41,16 +41,24 @@ ENTITY = "http://www.wikidata.org/entity/"
 
 def _sparql(client: PoliteClient, query: str, attempts: int = SPARQL_ATTEMPTS) -> list[dict]:
     url = config.source_cfg("wikidata")["sparql_url"]
+    data = {"query": query, "format": "json"}
     resp = client.post(
         url,
-        data={"query": query, "format": "json"},
+        data=data,
         headers={"Accept": "application/sparql-results+json"},
         timeout=300,
         attempts=attempts,
     )
     if resp.status >= 400:
         raise RuntimeError(f"SPARQL hiba {resp.status}: {resp.text[:300]}")
-    return resp.json()["results"]["bindings"]
+    try:
+        return resp.json()["results"]["bindings"]
+    except (ValueError, KeyError, TypeError) as exc:
+        # A WDQS időtúllépéskor 200-as státusszal is adhat csonka választ (a folyam
+        # közepére írja a hibát): ezt hibának vesszük (a köteg kettéosztódik), és nem
+        # hagyjuk a gyorsítótárban, különben a következő futás is ezen akadna el.
+        client.forget("POST", url, data)
+        raise RuntimeError(f"SPARQL: hibás (csonka) válasz: {exc}") from exc
 
 
 def _qid(uri: str) -> str:

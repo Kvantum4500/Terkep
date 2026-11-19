@@ -78,11 +78,14 @@ jobs:
       - name: Jelzett turistautak (OSM)
         run: terkep fetch trails
 
+      # csak akkor ment új (kb. 315 MB-os) bejegyzést, ha a kivonat tényleg változott
+      # (a GitHub-gyorsítótár 10 GB-os keretét különben gyorsan kitöltené)
       - name: OSM-kivonat mentése a gyorsítótárba
         uses: actions/cache/save@v4
+        continue-on-error: true
         with:
           path: pipeline/cache/osm
-          key: terkep-pbf-${{ github.run_id }}
+          key: terkep-pbf-${{ hashFiles('pipeline/cache/osm/hungary-latest.osm.pbf') }}
       - name: Wikidata
         run: terkep fetch wikidata
       - name: Magyar Wikipédia-listák
