@@ -456,37 +456,68 @@ def _subject_reason(rec: SourceRecord, item: SourceRecord) -> str | None:
     return None
 
 
-def _strip_subject_qids(records: list[SourceRecord], report: Report) -> None:
-    """A tárgyra mutató QID-ek leválasztása.
+# Ezek a források a QID-en keresztül csak „rákapcsolódnak” egy elemre (nem saját helyük
+# van): ha a QID tárgyra mutat, a rekordjuk is a tárgyat írja le (pl. a hu-wiki
+# kastélylista a falu cikkére linkel, mert a kastélynak nincs saját cikke).
+LINK_ONLY_SOURCES = frozenset({"wikidata", "huwiki"})
+
+
+def _strip_subject_qids(records: list[SourceRecord], report: Report) -> list[SourceRecord]:
+    """A tárgyra mutató QID-ek leválasztása; a szűrt rekordlistát adja vissza.
 
     Az OSM-ben a „wikidata” címke gyakran a szobor alakjára, a kiállított tárgy típusára
     (T-34, MiG-21), egy fajtára vagy a falura mutat (a helyes címke a „subject:wikidata”
     lenne). Ilyenkor a pontozás a tárgy Wikipédia-ismertségét kapná, és a hely a kiemeltek
     közé kerülne. Jel: a Wikidata-elem a mi osztálytérképünkkel besorolhatatlan, és nincs
     helye, messze van, vagy más a neve. A besorolt elemekhez (vár, templom…) nem nyúlunk.
+
+    Ha egy QID-et minden helyhez kötött rekord elengedett, a Wikidata-eleme és a rá mutató
+    hu-wiki rekordok is kimaradnak – különben ők ketten (a falu koordinátájával, nevével
+    és ismertségével) új, hamis pontot alkotnának.
     """
     items = {r.ref: r for r in records if r.source == "wikidata"}
+    stripped: dict[str, list[dict]] = defaultdict(list)
+    kept: set[str] = set()
     for rec in records:
-        if rec.source == "wikidata" or not rec.wikidata:
+        if rec.source in LINK_ONLY_SOURCES or not rec.wikidata:
             continue
         item = items.get(rec.wikidata)
         if item is None or item.cat is not None:
             continue
         why = _subject_reason(rec, item)
         if why is None:
+            kept.add(rec.wikidata)
             continue
-        report.subject_qids.append(
-            {"forras": rec.key, "nev": rec.name, "qid": rec.wikidata, "targy": item.name, "ok": why}
-        )
+        row = {"forras": rec.key, "nev": rec.name, "qid": rec.wikidata, "targy": item.name, "ok": why}
+        stripped[rec.wikidata].append(row)
+        report.subject_qids.append(row)
         rec.extra["subject_wikidata"] = rec.wikidata
         rec.wikidata = None
         if rec.huwiki and rec.huwiki == item.huwiki:
             rec.huwiki = None
 
+    subjects = set(stripped) - kept
+    if not subjects:
+        return records
+    out: list[SourceRecord] = []
+    dropped: dict[str, int] = defaultdict(int)
+    for rec in records:
+        if rec.wikidata in subjects:
+            if rec.source in LINK_ONLY_SOURCES:
+                dropped[rec.wikidata] += 1
+                continue
+            rec.extra["subject_wikidata"] = rec.wikidata
+            rec.wikidata = None
+        out.append(rec)
+    for qid, rows in stripped.items():
+        for row in rows:
+            row["kihagyott_rekordok"] = dropped.get(qid, 0)
+    return out
+
 
 def conflate(records: list[SourceRecord], source_order: list[str], source_cfgs: dict[str, dict]) -> Conflator:
     conf = Conflator(source_cfgs)
-    _strip_subject_qids(records, conf.report)
+    records = _strip_subject_qids(records, conf.report)
     # a Wikidata-elemek saját kategóriája: ez dönti el, melyik OSM-rekordon marad a QID
     qid_cat = {r.ref: r.cat for r in records if r.source == "wikidata"}
     records = _dedupe_within_source(records, conf.report, qid_cat)

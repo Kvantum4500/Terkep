@@ -388,3 +388,41 @@ def test_generic_osm_name_gives_way_to_real_name():
         ]
     )
     assert sorted(p.name for p in pois) == ["Alcsúti Arborétum", "Budai Vár"]
+
+
+def test_subject_qid_does_not_form_a_new_poi_with_the_list_link():
+    """A hu-wiki kastélylista a falu cikkére linkel: a falu és a lista nem lehet új pont."""
+    castle = (46.3972, 17.9825)
+    conf, pois = run(
+        [
+            rec("osm", "w8", "Festetics-kastély", *castle, cat="kastely", wikidata="Q3"),
+            rec(
+                "wikidata",
+                "Q3",
+                "Kisgyalán",
+                46.4229,
+                17.9759,
+                wikidata="Q3",
+                huwiki="Kisgyalán",
+                sitelinks=30,
+            ),
+            rec("huwiki", "Kisgyalán", "Kisgyalán", cat="kastely", wikidata="Q3", huwiki="Kisgyalán"),
+        ]
+    )
+    assert [(p.name, p.id, p.huwiki) for p in pois] == [("Festetics-kastély", "w8", None)]
+    assert conf.report.subject_qids[0]["kihagyott_rekordok"] == 2
+
+
+def test_list_link_still_joins_when_another_record_keeps_the_qid():
+    """Ha egy másik pont jogosan viseli a besorolatlan QID-et, a lista rákapcsolódik."""
+    _, pois = run(
+        [
+            rec("osm", "w9", "Bory-vár", 47.2010, 18.4330, cat="kastely", wikidata="Q2"),
+            rec("osm", "n9", "Bory Jenő szobra", 47.2400, 18.4330, cat="egyeb", wikidata="Q2"),
+            rec("wikidata", "Q2", "Bory-vár Múzeum", 47.2012, 18.4332, wikidata="Q2", sitelinks=12),
+            rec("huwiki", "Bory-vár", "Bory-vár", cat="kastely", wikidata="Q2", huwiki="Bory-vár"),
+        ]
+    )
+    bory = next(p for p in pois if p.id == "Q2")
+    assert bory.huwiki == "Bory-vár"
+    assert {s["s"] for s in bory.sources} == {"osm", "wikidata", "huwiki"}
