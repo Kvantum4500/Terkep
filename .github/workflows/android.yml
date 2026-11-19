@@ -37,7 +37,11 @@ jobs:
           distribution: temurin
           java-version: 21
           cache: gradle
+      # az alapértelmezett csomaglista az új sdkmanagerben már nem létező „tools”-t kérné
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools platforms;android-36
+          log-accepted-android-sdk-licenses: false
       - run: npm ci
 
       - name: Web-build az apphoz (az adatok az APK-ba kerülnek)
