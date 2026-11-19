@@ -14,8 +14,8 @@ export function onUpdateAvailable(fn: Listener): void {
 
 export function setupPwa(): void {
   if (!('serviceWorker' in navigator)) return
-  // Capacitorba csomagolva (később) nincs szükség service workerre
-  if ((window as unknown as { Capacitor?: unknown }).Capacitor) return
+  // a natív Android-appban (Capacitor) az adatok az APK-ban vannak: nincs service worker
+  if (import.meta.env.VITE_NATIVE || (window as unknown as { Capacitor?: unknown }).Capacitor) return
   const updateSW = registerSW({
     onNeedRefresh() {
       const apply = () => void updateSW(true)

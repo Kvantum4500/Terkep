@@ -1,0 +1,104 @@
+name: Android-app
+
+# Natív Android-app (Capacitor) APK-ként, Play Áruház nélkül. Minden frissítés után
+# aláírt APK kerül a fix „android-latest” kiadásba, telefonról letölthető:
+#   https://github.com/Kvantum4500/Terkep/releases/download/android-latest/terkep.apk
+# Az aláíró kulcs csak titokból jön (ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD);
+# nélküle csak debug APK készül artifactként (az nem telepíthető a korábbira).
+on:
+  push:
+    branches: [ccr-4298a10a-hl7nsf, main]
+    paths: ['web/**', 'data/**', '.github/workflows/android.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+      # az alapértelmezett csomaglista az új sdkmanagerben már nem létező „tools”-t kérné
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools platforms;android-36
+          log-accepted-android-sdk-licenses: false
+      - run: npm ci
+
+      - name: Web-build az apphoz (az adatok az APK-ba kerülnek)
+        run: npm run build
+        env:
+          BASE_PATH: /
+          VITE_NATIVE: '1'
+          VITE_GOOGLE_MAPS_EMBED_KEY: ${{ vars.GOOGLE_MAPS_EMBED_KEY }}
+          VITE_MAPILLARY_TOKEN: ${{ vars.MAPILLARY_TOKEN }}
+      - run: npx cap sync android
+
+      - name: Aláíró kulcs (titokból)
+        id: key
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KS" ]; then
+            printf '%s' "$KS" | base64 -d > "$RUNNER_TEMP/terkep.p12"
+            echo "file=$RUNNER_TEMP/terkep.p12" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Nincs ANDROID_KEYSTORE_BASE64 titok – csak debug APK készül (artifactként)."
+          fi
+
+      - name: APK (aláírt release)
+        if: steps.key.outputs.file != ''
+        working-directory: web/android
+        env:
+          ANDROID_KEYSTORE_FILE: ${{ steps.key.outputs.file }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: ./gradlew --no-daemon assembleRelease -PversionCode=${{ github.run_number }} -PversionName=1.${{ github.run_number }}
+
+      - name: APK (debug, kulcs nélkül)
+        if: steps.key.outputs.file == ''
+        working-directory: web/android
+        run: ./gradlew --no-daemon assembleDebug -PversionCode=${{ github.run_number }} -PversionName=1.${{ github.run_number }}
+
+      - name: Feltöltés az „android-latest” kiadásba
+        if: steps.key.outputs.file != '' && github.ref_name == github.event.repository.default_branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+          RUN: ${{ github.run_number }}
+        run: |
+          cp android/app/build/outputs/apk/release/app-release.apk terkep.apk
+          notes="Látnivalók Android-app, 1.${RUN}. build (${SHA:0:7}). Telepítés: töltsd le a terkep.apk-t a telefonon, és engedélyezd a böngészőnek az ismeretlen forrásból származó appok telepítését. Az új verzió a régire telepíthető, a mentett túrák megmaradnak."
+          if ! gh release view android-latest >/dev/null 2>&1; then
+            gh release create android-latest --prerelease --target "$SHA" --title "Android-app (legfrissebb)" --notes "$notes"
+          else
+            gh release edit android-latest --notes "$notes"
+          fi
+          gh release upload android-latest terkep.apk --clobber
+
+      - name: APK artifactként
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: terkep-apk
+          path: web/android/app/build/outputs/apk/**/*.apk
+          retention-days: 14
+          if-no-files-found: ignore

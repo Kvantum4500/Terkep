@@ -24,6 +24,7 @@ from .models import (
     FLAG_APPROX,
     FLAG_HERITAGE,
     FLAG_IMAGE,
+    FLAG_PANO,
     FLAG_RUIN,
     FLAG_SAMPLE,
     FLAG_SHOWCAVE,
@@ -54,6 +55,12 @@ RADII: dict[str, tuple[float, float, float | None]] = {
 }
 DEFAULT_RADII = (300.0, 150.0, None)
 DEDUPE_M = 50.0
+# Azonos QID-ű rekordok ezen a távolságon belül egy pontot jelentenek (hosszú híd, tó, völgy).
+SAME_QID_MAX_M = 5000.0
+# Ha egy OSM-objektum besorolhatatlan Wikidata-elemre mutat, és az messze van vagy
+# más a neve, az a tárgya (szobor alakja, kiállított harckocsi típusa, a falu), nem a hely.
+SUBJECT_MAX_M = 2000.0
+SUBJECT_MIN_SIM = 0.5
 STRONG = 0.85
 WEAK = 0.6
 AMBIGUOUS = 0.5
@@ -110,7 +117,14 @@ class Cluster:
 
     @property
     def name(self) -> str:
-        return min(self.records, key=lambda r: _prio(r.source)).name
+        ordered = sorted(self.records, key=lambda r: _prio(r.source))
+        first = ordered[0].name
+        if is_generic(first):
+            # „Vár”, „Viadukt”, „Jegypénztár”: a többi forrás (elsőként a Wikidata) valódi neve
+            for r in ordered[1:]:
+                if r.name and not is_generic(r.name):
+                    return r.name
+        return first
 
     @property
     def settlement(self) -> str | None:
@@ -128,11 +142,19 @@ class Cluster:
 class Report:
     ambiguous: list[dict] = field(default_factory=list)
     unmatched: list[dict] = field(default_factory=list)
+    qid_conflicts: list[dict] = field(default_factory=list)
+    subject_qids: list[dict] = field(default_factory=list)
     deduped: int = 0
+    id_fixes: int = 0
 
     def write(self, out_dir: Path) -> None:
         out_dir.mkdir(parents=True, exist_ok=True)
-        for name, rows in (("ambiguous_matches.csv", self.ambiguous), ("unmatched.csv", self.unmatched)):
+        for name, rows in (
+            ("ambiguous_matches.csv", self.ambiguous),
+            ("unmatched.csv", self.unmatched),
+            ("qid_conflicts.csv", self.qid_conflicts),
+            ("subject_qids.csv", self.subject_qids),
+        ):
             with (out_dir / name).open("w", newline="", encoding="utf-8") as f:
                 if not rows:
                     f.write("")
@@ -178,12 +200,67 @@ def _match_class(rec: SourceRecord, cl: Cluster, sim: float, d: float) -> tuple[
     return None
 
 
-def _dedupe_within_source(records: list[SourceRecord], report: Report) -> list[SourceRecord]:
+def _absorb(primary: SourceRecord, r: SourceRecord) -> None:
+    primary.flags |= r.flags
+    primary.extra.setdefault("dups", []).append(r.ref)
+    for k in ("huwiki", "image", "ele", "desc", "settlement"):
+        if getattr(primary, k) in (None, "") and getattr(r, k) not in (None, ""):
+            setattr(primary, k, getattr(r, k))
+    for k in ("heritage", "showcave"):
+        if r.extra.get(k):
+            primary.extra[k] = True
+
+
+def _merge_same_qid(
+    recs: list[SourceRecord], report: Report, qid_cat: dict[str, str | None] | None = None
+) -> list[SourceRecord]:
+    """Egy forráson belül azonos QID-ű rekordok (pl. egy hosszú híd vagy tó több
+    OSM-darabja) egy rekorddá olvadnak, ha SAME_QID_MAX_M-en belül vannak ÉS a
+    kategóriájuk összeegyeztethető. Különben a QID csak egy rekordon marad – azon,
+    amelyiknek a kategóriája a Wikidata-elemével egyezik (qid_cat) –, a többiről
+    levesszük (valószínű címkézési hiba, pl. a csúcs QID-je a rajta álló kilátón),
+    hogy két pont ne kapja ugyanazt az azonosítót, és egyik se tűnjön el."""
+    qid_cat = qid_cat or {}
+    groups: dict[str, list[SourceRecord]] = defaultdict(list)
+    for r in recs:
+        if r.wikidata:
+            groups[r.wikidata].append(r)
+    absorbed: set[int] = set()
+    for qid, group in groups.items():
+        if len(group) < 2:
+            continue
+        wanted = qid_cat.get(qid)
+        primary = next((r for r in group if wanted and r.cat == wanted), group[0])
+        for r in group:
+            if r is primary:
+                continue
+            d = (
+                distance_m(r.lat, r.lon, primary.lat, primary.lon)
+                if r.has_coords and primary.has_coords
+                else -1
+            )
+            if 0 <= d <= SAME_QID_MAX_M and categories_compatible(primary.cat, r.cat, 1.0):
+                _absorb(primary, r)
+                absorbed.add(id(r))
+                report.deduped += 1
+            else:
+                r.extra["dropped_wikidata"] = qid
+                r.wikidata = None
+                report.qid_conflicts.append(
+                    {"forras": r.key, "nev": r.name, "kat": r.cat or "", "qid": qid, "tavolsag_m": round(d)}
+                )
+    return [r for r in recs if id(r) not in absorbed]
+
+
+def _dedupe_within_source(
+    records: list[SourceRecord], report: Report, qid_cat: dict[str, str | None] | None = None
+) -> list[SourceRecord]:
     by_source: dict[str, list[SourceRecord]] = defaultdict(list)
     for r in records:
         by_source[r.source].append(r)
     out: list[SourceRecord] = []
     for _source, recs in by_source.items():
+        recs = _merge_same_qid(recs, report, qid_cat)
         grid = GridIndex(cell_m=200)
         kept: list[SourceRecord] = []
         for r in recs:
@@ -299,13 +376,26 @@ class Conflator:
             cl = self.by_qid.get(rec.wikidata) if rec.wikidata else None
             if cl is not None and source not in cl.sources:
                 self._attach(rec, cl)
-            elif cl is not None and source == "osm":
-                # ugyanaz a wikidata-címke több OSM-objektumon (pl. pont + terület)
+            elif cl is not None:
+                # Ugyanaz a QID több rekordon ugyanabból a forrásból (pl. egy hosszú
+                # híd vagy tó több OSM-darabja, egy vár területe és pontja).
                 d = distance_m(rec.lat, rec.lon, cl.anchor.lat, cl.anchor.lon) if rec.has_coords else 0
-                if d <= RADII.get(rec.cat or "", DEFAULT_RADII)[0]:
+                if d <= SAME_QID_MAX_M:
                     cl.anchor.extra.setdefault("dups", []).append(rec.ref)
                     self.report.deduped += 1
                 else:
+                    # messze van: valószínű címkézési hiba -> QID nélkül megy tovább,
+                    # különben két pont kapná ugyanazt az azonosítót
+                    rec.extra["dropped_wikidata"] = rec.wikidata
+                    rec.wikidata = None
+                    self.report.qid_conflicts.append(
+                        {
+                            "forras": rec.key,
+                            "nev": rec.name,
+                            "qid": rec.extra["dropped_wikidata"],
+                            "tavolsag_m": round(d),
+                        }
+                    )
                     pending.append(rec)
             else:
                 pending.append(rec)
@@ -353,11 +443,84 @@ class Conflator:
             self.by_qid[qid] = head
 
 
+def _subject_reason(rec: SourceRecord, item: SourceRecord) -> str | None:
+    """Miért a tárgyára (és nem a helyre) mutat a rekord QID-je; None, ha a helyre."""
+    if not item.has_coords:
+        return "a Wikidata-elemnek nincs helye"
+    if rec.has_coords:
+        d = distance_m(rec.lat, rec.lon, item.lat, item.lon)
+        if d > SUBJECT_MAX_M:
+            return f"{round(d)} m-re van"
+    if name_similarity(rec.name, item.name, rec.settlement, item.settlement) < SUBJECT_MIN_SIM:
+        return "más a neve"
+    return None
+
+
+# Ezek a források a QID-en keresztül csak „rákapcsolódnak” egy elemre (nem saját helyük
+# van): ha a QID tárgyra mutat, a rekordjuk is a tárgyat írja le (pl. a hu-wiki
+# kastélylista a falu cikkére linkel, mert a kastélynak nincs saját cikke).
+LINK_ONLY_SOURCES = frozenset({"wikidata", "huwiki"})
+
+
+def _strip_subject_qids(records: list[SourceRecord], report: Report) -> list[SourceRecord]:
+    """A tárgyra mutató QID-ek leválasztása; a szűrt rekordlistát adja vissza.
+
+    Az OSM-ben a „wikidata” címke gyakran a szobor alakjára, a kiállított tárgy típusára
+    (T-34, MiG-21), egy fajtára vagy a falura mutat (a helyes címke a „subject:wikidata”
+    lenne). Ilyenkor a pontozás a tárgy Wikipédia-ismertségét kapná, és a hely a kiemeltek
+    közé kerülne. Jel: a Wikidata-elem a mi osztálytérképünkkel besorolhatatlan, és nincs
+    helye, messze van, vagy más a neve. A besorolt elemekhez (vár, templom…) nem nyúlunk.
+
+    Ha egy QID-et minden helyhez kötött rekord elengedett, a Wikidata-eleme és a rá mutató
+    hu-wiki rekordok is kimaradnak – különben ők ketten (a falu koordinátájával, nevével
+    és ismertségével) új, hamis pontot alkotnának.
+    """
+    items = {r.ref: r for r in records if r.source == "wikidata"}
+    stripped: dict[str, list[dict]] = defaultdict(list)
+    kept: set[str] = set()
+    for rec in records:
+        if rec.source in LINK_ONLY_SOURCES or not rec.wikidata:
+            continue
+        item = items.get(rec.wikidata)
+        if item is None or item.cat is not None:
+            continue
+        why = _subject_reason(rec, item)
+        if why is None:
+            kept.add(rec.wikidata)
+            continue
+        row = {"forras": rec.key, "nev": rec.name, "qid": rec.wikidata, "targy": item.name, "ok": why}
+        stripped[rec.wikidata].append(row)
+        report.subject_qids.append(row)
+        rec.extra["subject_wikidata"] = rec.wikidata
+        rec.wikidata = None
+        if rec.huwiki and rec.huwiki == item.huwiki:
+            rec.huwiki = None
+
+    subjects = set(stripped) - kept
+    if not subjects:
+        return records
+    out: list[SourceRecord] = []
+    dropped: dict[str, int] = defaultdict(int)
+    for rec in records:
+        if rec.wikidata in subjects:
+            if rec.source in LINK_ONLY_SOURCES:
+                dropped[rec.wikidata] += 1
+                continue
+            rec.extra["subject_wikidata"] = rec.wikidata
+            rec.wikidata = None
+        out.append(rec)
+    for qid, rows in stripped.items():
+        for row in rows:
+            row["kihagyott_rekordok"] = dropped.get(qid, 0)
+    return out
+
+
 def conflate(records: list[SourceRecord], source_order: list[str], source_cfgs: dict[str, dict]) -> Conflator:
-    report = Report()
-    records = _dedupe_within_source(records, report)
     conf = Conflator(source_cfgs)
-    conf.report.deduped = report.deduped
+    records = _strip_subject_qids(records, conf.report)
+    # a Wikidata-elemek saját kategóriája: ez dönti el, melyik OSM-rekordon marad a QID
+    qid_cat = {r.ref: r.cat for r in records if r.source == "wikidata"}
+    records = _dedupe_within_source(records, conf.report, qid_cat)
     by_source: dict[str, list[SourceRecord]] = defaultdict(list)
     for r in records:
         by_source[r.source].append(r)
@@ -445,6 +608,9 @@ def build_poi(cl: Cluster) -> Poi | None:
     if huwiki is None:
         huwiki = next((r.ref for r in recs if r.source == "huwiki"), None)
     tier_hint = next((r.extra["tier"] for r in recs if r.extra.get("tier")), None)
+    pano = next((r.extra["pano"] for r in recs if r.extra.get("pano")), None)
+    if pano:
+        flags |= FLAG_PANO
     poi = Poi(
         id=poi_id(cl),
         name=cl.name,
@@ -463,6 +629,7 @@ def build_poi(cl: Cluster) -> Poi | None:
         ele=_choose(recs, "ele"),
         img=img,
         alt=names[:3],
+        pano=pano,
     )
     poi.meta = {
         "sitelinks": max((r.sitelinks for r in recs), default=0),
@@ -472,3 +639,63 @@ def build_poi(cl: Cluster) -> Poi | None:
         "showcave": any(r.extra.get("showcave") for r in recs),
     }
     return poi
+
+
+FINAL_DEDUPE_M = 30.0
+
+
+def merge_close_duplicates(pois: list[Poi]) -> tuple[list[Poi], int]:
+    """Utolsó biztonsági kör: azonos kategóriájú, azonos nevű pontok 30 m-en belül
+    egy pontba (pl. ugyanarra a helyre mutató két különböző Wikidata-elem).
+    A több forrással rendelkező pont marad meg, a másik forrásai átkerülnek rá."""
+    order = sorted(pois, key=lambda p: (-len(p.sources), p.id))
+    grid = GridIndex(cell_m=100)
+    kept: list[Poi] = []
+    merged = 0
+    for p in order:
+        target = None
+        for other, _d in grid.near(p.lat, p.lon, FINAL_DEDUPE_M):
+            if other.cat == p.cat and fold(other.name) == fold(p.name):
+                target = other
+                break
+        if target is None:
+            grid.add(p.lat, p.lon, p)
+            kept.append(p)
+            continue
+        merged += 1
+        have = {(s["s"], s["ref"]) for s in target.sources}
+        target.sources.extend(s for s in p.sources if (s["s"], s["ref"]) not in have)
+        target.flags |= p.flags
+        for attr in ("wikidata", "osm", "huwiki", "desc", "ele", "img", "settlement", "sub"):
+            if getattr(target, attr) in (None, "") and getattr(p, attr) not in (None, ""):
+                setattr(target, attr, getattr(p, attr))
+        target.meta["sitelinks"] = max(target.meta.get("sitelinks", 0), p.meta.get("sitelinks", 0))
+        target.meta["sources"] = set(target.meta.get("sources", set())) | set(p.meta.get("sources", set()))
+        target.meta["showcave"] = target.meta.get("showcave") or p.meta.get("showcave")
+    return kept, merged
+
+
+def ensure_unique_ids(pois: list[Poi]) -> int:
+    """Biztonsági háló: ha két pont mégis ugyanazt az azonosítót kapná, a több
+    forrású marad, a többi az OSM-azonosítóját (vagy <forrás>:<ref>) kapja, és
+    lekerül róla a QID. Visszaadja a javított pontok számát."""
+    groups: dict[str, list[Poi]] = defaultdict(list)
+    for p in pois:
+        groups[p.id].append(p)
+    taken = set(groups)
+    fixed = 0
+    for pid, group in groups.items():
+        if len(group) < 2:
+            continue
+        group.sort(key=lambda p: (-len(p.sources), p.osm or "", p.name))
+        for k, p in enumerate(group[1:], start=2):
+            candidates = [p.osm] if p.osm else []
+            candidates += [f"{s['s']}:{s['ref']}" for s in p.sources if s["s"] not in ("osm", "wikidata")]
+            new_id = next((c for c in candidates if c and c not in taken), None) or f"dup:{pid}-{k}"
+            if p.wikidata == pid:
+                p.wikidata = None
+                p.sources = [s for s in p.sources if not (s["s"] == "wikidata" and s["ref"] == pid)]
+            p.id = new_id
+            taken.add(new_id)
+            fixed += 1
+    return fixed

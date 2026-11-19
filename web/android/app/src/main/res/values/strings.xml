@@ -1,0 +1,10 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Látnivalók</string>
+    <string name="title_activity_main">Látnivalók</string>
+    <string name="package_name">io.github.kvantum4500.terkep</string>
+    <string name="custom_url_scheme">io.github.kvantum4500.terkep</string>
+    <!-- a háttérben futó túrarögzítés értesítési csatornája -->
+    <string name="capacitor_background_geolocation_notification_channel_name">Túrarögzítés</string>
+    <string name="capacitor_background_geolocation_notification_color">#166534</string>
+</resources>

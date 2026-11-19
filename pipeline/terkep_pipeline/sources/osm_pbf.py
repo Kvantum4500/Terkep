@@ -160,6 +160,9 @@ def extract(pbf: Path) -> tuple[list[SourceRecord], dict[str, object], list[tupl
 
 def write_boundaries(counties: dict[str, object], settlements: list[tuple[str, object]]) -> bool:
     """Ha az OSM-határok átmennek az ellenőrzésen, kiírja őket; különben False."""
+    if "BU" in counties and "PE" in counties:
+        # ha Pest poligonjában nincs kivágva Budapest, itt vágjuk ki (átfedés ellen)
+        counties = {**counties, "PE": counties["PE"].difference(counties["BU"]).buffer(0)}
     problems = boundaries.check(counties)
     if problems:
         log.warning("OSM vármegyehatár-hiba, marad a tartalék: %s", "; ".join(problems))

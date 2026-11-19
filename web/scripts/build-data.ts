@@ -9,7 +9,7 @@
 //
 // Futtatás: node scripts/build-data.ts  (Node 22+ típuseltávolítással)
 
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { gzipSync } from 'node:zlib'
@@ -24,6 +24,7 @@ const BUDGET = {
   detailsGzipTotal: 3072 * KB,
   detailsGzipPerCounty: 400 * KB,
   countiesGzip: 150 * KB,
+  trailsGzip: 3072 * KB,
 }
 
 function pickDataDir(): string {
@@ -52,6 +53,8 @@ interface Row {
   desc?: string
   ele?: number
   img?: { file: string; artist?: string; license?: string; license_url?: string }
+  sv?: { lat: number; lon: number; h: number }
+  pano?: string
   alt?: string[]
 }
 
@@ -110,7 +113,7 @@ for (const code of countyKeys) {
   for (const r of rows) {
     if (r.county !== code) continue
     const d: Record<string, unknown> = { sources: r.sources }
-    for (const k of ['sub', 'desc', 'ele', 'img', 'alt', 'wikidata', 'osm', 'huwiki'] as const) {
+    for (const k of ['sub', 'desc', 'ele', 'img', 'alt', 'sv', 'pano', 'wikidata', 'osm', 'huwiki'] as const) {
       if (r[k] !== undefined) d[k] = r[k]
     }
     details[r.id] = d
@@ -127,10 +130,24 @@ writeFileSync(join(outDir, 'megyek.geojson'), counties)
 const countiesGz = gzipSync(counties).length
 if (countiesGz > BUDGET.countiesGzip) problems.push(`megyek.geojson gzip ${countiesGz} > ${BUDGET.countiesGzip}`)
 
+// jelzett turistautak (ha a pipeline előállította): változatlanul átmásoljuk
+let trailsGz = 0
+const trailsDir = join(dataDir, 'trails')
+if (existsSync(join(trailsDir, 'index.json'))) {
+  mkdirSync(join(outDir, 'trails'), { recursive: true })
+  for (const f of readdirSync(trailsDir).filter((x) => x.endsWith('.json'))) {
+    const text = readFileSync(join(trailsDir, f), 'utf8')
+    writeFileSync(join(outDir, 'trails', f), text)
+    trailsGz += gzipSync(text).length
+  }
+  if (trailsGz > BUDGET.trailsGzip) problems.push(`turistautak gzip ${trailsGz} > ${BUDGET.trailsGzip}`)
+}
+
 console.log(
   `adat: ${dataDir} -> ${outDir}\n` +
     `  ${rows.length} látnivaló${meta.sample ? ' (MINTAADAT)' : ''}; index ${(indexGz / KB).toFixed(0)} KB gz, ` +
-    `részletek ${(detailsTotal / KB).toFixed(0)} KB gz, határok ${(countiesGz / KB).toFixed(0)} KB gz`,
+    `részletek ${(detailsTotal / KB).toFixed(0)} KB gz, határok ${(countiesGz / KB).toFixed(0)} KB gz, ` +
+    `turistautak ${(trailsGz / KB).toFixed(0)} KB gz`,
 )
 if (problems.length) {
   console.error('Mérethatár túllépve:\n  ' + problems.join('\n  '))

@@ -21,11 +21,12 @@ describe('URL hash', () => {
         showcave: true,
         kektura: false,
         heritage: true,
+        pano: true,
       },
       selected: 'Q42',
     }
     const hash = toHash(state)
-    expect(hash).toBe('#m=BU,PE&k=templom&s=1,2,3&q=Szent+Anna&j=barlang,muemlek&p=Q42')
+    expect(hash).toBe('#m=BU,PE&k=templom&s=1,2,3&q=Szent+Anna&j=barlang,muemlek,360&p=Q42')
     const back = parseHash(hash, COUNTIES, CATS)
     expect(back.selected).toBe('Q42')
     expect(back.filters).toEqual({ ...state.filters, counties: ['BU', 'PE'] })

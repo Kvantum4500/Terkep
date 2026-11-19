@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import BUILD_DIR, DATA_DIR, config, records
-from .conflate import Conflator, build_poi, conflate
+from .conflate import Conflator, build_poi, conflate, ensure_unique_ids, merge_close_duplicates
 from .geo import PolygonIndex, in_hu_bbox
 from .models import Poi, SourceRecord
 from .score import assign_tiers
@@ -100,15 +100,18 @@ def run(
             dropped.append({"id": poi.id, "nev": poi.name, "ok": "országon kívül (bbox)"})
             continue
         code = counties.lookup(poi.lat, poi.lon, snap_m=snap)
+        expected = next(
+            (r.extra.get("expected_county") for r in cl.records if r.extra.get("expected_county")), None
+        )
+        if code is None and sample and expected:
+            # a kézi mintaadat közelítő koordinátája a határon túlra eshet (pl. Írott-kő)
+            code = expected
         if code is None:
             dropped.append({"id": poi.id, "nev": poi.name, "ok": "egyik vármegyébe sem esik"})
             continue
         poi.county = code
         if not poi.settlement and settlements is not None:
             poi.settlement = settlements.lookup(poi.lat, poi.lon)
-        expected = next(
-            (r.extra.get("expected_county") for r in cl.records if r.extra.get("expected_county")), None
-        )
         if expected and expected != code:
             mismatch.append({"id": poi.id, "nev": poi.name, "elvart": expected, "kapott": code})
             if sample:
@@ -116,8 +119,13 @@ def run(
                 poi.county = expected
         pois.append(poi)
 
+    pois, merged = merge_close_duplicates(pois)
+    conf.report.deduped += merged
     pois = apply_overrides(pois, conf)
+    conf.report.id_fixes = ensure_unique_ids(pois)
     assign_tiers(pois)
+    if not sample:
+        attach_streetview(pois)
 
     if out_dir is not None:
         from .export import write_outputs
@@ -126,6 +134,24 @@ def run(
     if reports_dir is not None:
         write_reports(reports_dir, pois, conf, dropped, mismatch)
     return BuildResult(pois, conf, dropped, mismatch)
+
+
+def attach_streetview(pois: list[Poi], data: dict[str, dict[str, float]] | None = None) -> int:
+    """A `terkep fetch streetview` eredménye (ha van) a látnivalókhoz."""
+    from .models import FLAG_STREETVIEW
+    from .sources import streetview
+
+    data = streetview.load() if data is None else data
+    n = 0
+    for p in pois:
+        sv = data.get(p.id)
+        if sv:
+            p.sv = sv
+            p.flags |= FLAG_STREETVIEW
+            n += 1
+    if data:
+        log.info("Utcakép %d látnivalónál", n)
+    return n
 
 
 def _boundaries_source() -> str:
@@ -141,6 +167,15 @@ def _csv(path: Path, rows: list[dict]) -> None:
             w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
             w.writeheader()
             w.writerows(rows)
+
+
+def _wikidata_skipped_classes() -> list[str]:
+    from .sources.wikidata import SKIPPED_PATH
+
+    try:
+        return json.loads(SKIPPED_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
 
 
 def write_reports(
@@ -176,9 +211,19 @@ def write_reports(
         "",
         f"- Bizonytalan párosítás: {len(conf.report.ambiguous)} (ambiguous_matches.csv)",
         f"- Párosítatlan megerősítő rekord: {len(conf.report.unmatched)} (unmatched.csv)",
+        f"- Távoli rekord azonos QID-del (QID levéve): {len(conf.report.qid_conflicts)} (qid_conflicts.csv)",
+        f"- Tárgyra mutató QID levéve (szobor, kiállított tárgy, falu): {len(conf.report.subject_qids)}"
+        " (subject_qids.csv)",
+        f"- Azonosító-ütközés javítva: {conf.report.id_fixes}",
         f"- Elvetett pont: {len(dropped)} (dropped.csv)",
         f"- Eltérő vármegye a vártnál: {len(mismatch)} (county_mismatch.csv)",
     ]
+    skipped = _wikidata_skipped_classes()
+    if skipped:
+        lines.append(
+            f"- Wikidata-osztály kimaradt a felderítésből (időtúllépés): {len(skipped)} – "
+            + ", ".join(skipped[:20])
+        )
     (out / "report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
