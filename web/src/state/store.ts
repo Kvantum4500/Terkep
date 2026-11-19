@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { AppData } from '../data/load'
 import { applyFilters, DEFAULT_FILTERS, type FilterResult, type FilterState } from '../filters/filter'
 import { DEFAULT_PREFS, type RoutePrefs } from '../route/engine'
+import type { TrailFilter } from '../trails/data'
 import {
   addToPlan,
   EMPTY_PLAN,
@@ -52,6 +53,12 @@ interface State {
   panelOpen: boolean
   /** kompatibilis térképmegjelenítés (ha a térkép vibrál) */
   compatMap: boolean
+  /** jelzett turistautak a térképen (üres színlista: kikapcsolva) */
+  trailFilter: TrailFilter
+  /** kiválasztott turistaút (pl. az Országos Kéktúra) */
+  selectedTrail: string | null
+  /** turistaút-kereső szövege (a kártya megnyitása után is megmarad) */
+  trailQuery: string
   route: RouteState
   /** a következő térképkoppintás ezt a pontot állítja be */
   pickRole: Role | null
@@ -67,6 +74,9 @@ interface State {
   setAboutOpen: (open: boolean) => void
   setPanelOpen: (open: boolean) => void
   setCompatMap: (on: boolean) => void
+  setTrailFilter: (patch: Partial<TrailFilter>) => void
+  setSelectedTrail: (id: string | null) => void
+  setTrailQuery: (q: string) => void
   addWaypoint: (wp: Waypoint, role: Role) => void
   removeWaypoint: (role: Role, viaIndex?: number) => void
   moveWaypoint: (viaIndex: number, dir: -1 | 1) => void
@@ -96,6 +106,9 @@ export const useStore = create<State>((set, get) => {
     aboutOpen: false,
     panelOpen: true,
     compatMap: false,
+    trailFilter: { colors: [], shapes: [] },
+    selectedTrail: null,
+    trailQuery: '',
     route: ROUTE0,
     pickRole: null,
     setData: (data) => set({ data, result: compute(data, get().filters) }),
@@ -113,6 +126,9 @@ export const useStore = create<State>((set, get) => {
     setAboutOpen: (aboutOpen) => set({ aboutOpen }),
     setPanelOpen: (panelOpen) => set({ panelOpen }),
     setCompatMap: (compatMap) => set({ compatMap }),
+    setTrailFilter: (patch) => set({ trailFilter: { ...get().trailFilter, ...patch } }),
+    setSelectedTrail: (selectedTrail) => set({ selectedTrail }),
+    setTrailQuery: (trailQuery) => set({ trailQuery }),
     addWaypoint: (wp, role) => setPlan(addToPlan(get().route.plan, wp, role)),
     removeWaypoint: (role, viaIndex) => setPlan(removeFromPlan(get().route.plan, role, viaIndex)),
     moveWaypoint: (i, dir) => setPlan(moveVia(get().route.plan, i, dir)),

@@ -5,14 +5,26 @@
 import type { Role, Waypoint } from '../route/types'
 import { type SheetTab, useStore } from './store'
 
-export type Layer = 'card' | 'route'
+export type Layer = 'card' | 'route' | 'trail'
 
 export function currentLayer(): Layer | null {
   return ((history.state as { terkep?: Layer } | null)?.terkep ?? null) as Layer | null
 }
 
-export function pushLayer(layer: Layer, url = window.location.href): void {
-  history.pushState({ terkep: layer }, '', url)
+export function pushLayer(layer: Layer, url = window.location.href, extra: Record<string, unknown> = {}): void {
+  history.pushState({ terkep: layer, ...extra }, '', url)
+}
+
+interface TrailState {
+  terkep: 'trail'
+  id: string
+  /** hány egymás utáni turistaút-bejegyzés van (a bezárás ennyit lép vissza) */
+  depth: number
+}
+
+function trailState(): TrailState | null {
+  const st = history.state as TrailState | null
+  return st?.terkep === 'trail' ? st : null
 }
 
 export function replaceLayer(layer: Layer | null, url = window.location.href): void {
@@ -50,6 +62,36 @@ export function onHistoryLayer(): void {
   const st = useStore.getState()
   const layer = currentLayer()
   if (layer !== 'route' && layer !== 'card' && st.tab === 'route') st.setTab('filters')
+  // turistaút-bejegyzés: annak az útnak a kártyája (pl. szakaszból vissza a szülőhöz);
+  // alatta lévő bejegyzésre visszalépve a kártya bezárul
+  const ts = trailState()
+  if (ts) {
+    if (st.selectedTrail !== ts.id) st.setSelectedTrail(ts.id)
+  } else if (layer !== 'card' && st.selectedTrail) st.setSelectedTrail(null)
+}
+
+/** Turistaút kiválasztása (saját előzmény-bejegyzéssel: a Vissza gomb bezárja). */
+export function openTrail(id: string): void {
+  const st = useStore.getState()
+  const layer = currentLayer()
+  const ts = trailState()
+  if (layer === 'card') {
+    // a látnivaló-kártya helyére (a Vissza az előző nézetbe visz)
+    history.replaceState({ terkep: 'trail', id, depth: 1 } satisfies TrailState, '', window.location.href)
+  } else if (!ts || ts.id !== id) {
+    // szakaszról szakaszra: minden út saját bejegyzést kap, a Vissza az előzőhöz lép
+    pushLayer('trail', window.location.href, { id, depth: ts ? ts.depth + 1 : 1 })
+  }
+  st.select(null)
+  st.setSelectedTrail(id)
+  if (!st.panelOpen) st.setPanelOpen(true)
+}
+
+/** A turistaút-kártya bezárása (az összes egymás utáni turistaút-bejegyzésen át). */
+export function closeTrail(): void {
+  const ts = trailState()
+  if (ts) history.go(-ts.depth)
+  else useStore.getState().setSelectedTrail(null)
 }
 
 export function locateMe(): Promise<Waypoint> {

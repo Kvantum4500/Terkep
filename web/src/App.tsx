@@ -5,6 +5,7 @@ import { parseHash, toHash } from './filters/urlState'
 import type { MapController } from './map/MapController'
 import { usePlanner } from './route/usePlanner'
 import { closeCard, currentLayer, onHistoryLayer, pushLayer, switchTab } from './state/actions'
+import { loadTrailIndex } from './trails/data'
 import { type Basemap, useStore } from './state/store'
 import { About } from './ui/About'
 import { FilterPanel } from './ui/FilterPanel'
@@ -14,6 +15,7 @@ import { PoiCard } from './ui/PoiCard'
 import { ResultList } from './ui/ResultList'
 import { RoutePanel } from './ui/RoutePanel'
 import { SHEET_HEIGHT, Sheet, type SheetState } from './ui/Sheet'
+import { TrailCard } from './ui/TrailCard'
 import { UpdateToast } from './ui/UpdateToast'
 
 const BASEMAPS: Basemap[] = ['topo', 'osm', 'sat', 'none']
@@ -44,6 +46,7 @@ export function App() {
   const data = useStore((s) => s.data)
   const error = useStore((s) => s.error)
   const selected = useStore((s) => s.selected)
+  const selectedTrail = useStore((s) => s.selectedTrail)
   const tab = useStore((s) => s.tab)
   const result = useStore((s) => s.result)
   const panelOpen = useStore((s) => s.panelOpen)
@@ -167,8 +170,8 @@ export function App() {
 
   // a kártya / útvonal megnyitásakor a panel legalább félig nyíljon ki
   useEffect(() => {
-    if (selected || tab === 'route') setSheet((s) => (s === 'peek' ? 'half' : s))
-  }, [selected, tab])
+    if (selected || selectedTrail || tab === 'route') setSheet((s) => (s === 'peek' ? 'half' : s))
+  }, [selected, selectedTrail, tab])
 
   // térképről választáskor a panel összecsukódik (több hely a térképnek), utána visszanyílik
   const prevPick = useRef(pickRole)
@@ -218,7 +221,7 @@ export function App() {
     </button>
   )
 
-  const header = selected ? null : (
+  const header = selected || selectedTrail ? null : (
     <div className="tabs" role="tablist">
       {tabBtn('filters', 'Szűrők')}
       {tabBtn(
@@ -262,6 +265,16 @@ export function App() {
         <Sheet state={sheet} onState={setSheet} onDrag={setDragH} header={header} onHidePanel={() => setPanelOpen(false)}>
           {selected ? (
             <PoiCard id={selected} onClose={closeCard} />
+          ) : selectedTrail ? (
+            <TrailCard
+              id={selectedTrail}
+              onFit={() =>
+                void loadTrailIndex().then((idx) => {
+                  const t = idx?.byId.get(selectedTrail)
+                  if (t) void mapCtl.current?.fitBox(t.b)
+                })
+              }
+            />
           ) : tab === 'filters' ? (
             <FilterPanel />
           ) : tab === 'list' ? (

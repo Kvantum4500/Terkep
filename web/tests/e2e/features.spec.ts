@@ -428,11 +428,18 @@ test('vibrálás ellen: a lap nem görget, mozgatáskor a térkép nem méretez�
 test('kompatibilis mód: a térkép megőrzött rajzpufferrel újraépül, a nézet és a pontok maradnak', async ({ page }) => {
   await mockServices(page)
   await open(page, '#m=BZ')
-  await page.waitForTimeout(900)
-  const before = await page.evaluate(() => {
-    const m = (window as unknown as { __terkepMap: { getZoom: () => number } }).__terkepMap
-    return m.getZoom()
-  })
+  // a vármegyére közelítés animációjának vége
+  const zoomNow = () =>
+    page.evaluate(() => (window as unknown as { __terkepMap: { getZoom: () => number } }).__terkepMap.getZoom())
+  let before = await zoomNow()
+  await expect
+    .poll(async () => {
+      const z = await zoomNow()
+      const stable = Math.abs(z - before) < 1e-6
+      before = z
+      return stable
+    }, { intervals: [300] })
+    .toBe(true)
   await page.getByTestId('layers-btn').click()
   await page.getByTestId('compat-map').check()
   const attrs = () =>
@@ -451,7 +458,8 @@ test('kompatibilis mód: a térkép megőrzött rajzpufferrel újraépül, a né
     })
   await expect.poll(async () => (await attrs()).preserve).toBe(true)
   await expect.poll(async () => (await attrs()).pois).toBe(true)
-  expect((await attrs()).zoom).toBeCloseTo(before, 1)
+  // a nézet megmarad (a maxBounds-korlát miatt legfeljebb kicsit közelebb)
+  expect(Math.abs((await attrs()).zoom - before)).toBeLessThan(1)
   // megmarad újratöltés után is
   await page.reload()
   await expect(page.getByTestId('result-count')).toBeVisible()
@@ -494,4 +502,74 @@ test('szűrő: csak 360°-os képpel', async ({ page }) => {
   await expect(page).toHaveURL(/j=360/)
   // a mintaadatban nincs utcakép-adat -> üres lista
   await expect(page.getByTestId('result-count')).toContainText('0')
+})
+
+test('turistautak: csak a kék jelzés, név szerinti keresés, szakaszok, Vissza', async ({ page }, info) => {
+  await mockServices(page)
+  await open(page)
+  const lines = () =>
+    page.evaluate(async () => {
+      const m = (
+        window as unknown as { __terkepMap: { getSource: (s: string) => { getData: () => Promise<GeoJSON.FeatureCollection> } } }
+      ).__terkepMap
+      const fc = await m.getSource('trail-lines').getData()
+      return fc.features.map((f) => `${f.properties!.id}:${f.properties!.c}${f.properties!.sel ? ':sel' : ''}`).sort()
+    })
+  const filter = page.getByTestId('trail-filter')
+  await filter.scrollIntoViewIfNeeded()
+  await filter.getByTestId('trail-color-k').click()
+  await expect.poll(lines).toEqual(['r1001:k', 'r1002:k'])
+  // a Waymarked-réteg ilyenkor kikapcsol
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        (window as unknown as { __terkepMap: { getLayoutProperty: (l: string, p: string) => string } }).__terkepMap.getLayoutProperty(
+          'trails',
+          'visibility',
+        ),
+      ),
+    )
+    .toBe('none')
+
+  // sárga kereszt
+  await filter.getByTestId('trail-color-k').click()
+  await filter.getByTestId('trail-color-s').click()
+  await filter.getByTestId('trail-shape-kereszt').click()
+  await expect.poll(lines).toEqual(['r1003:s'])
+
+  // keresés név szerint -> kártya a szakaszokkal
+  await filter.getByTestId('trail-search').fill('kektura')
+  await filter.getByTestId('trail-hit').first().click()
+  const card = page.getByTestId('trail-card')
+  await expect(card).toContainText('Minta Kéktúra')
+  await expect(card).toContainText('16,2 km')
+  await expect(card).toContainText('Szakaszok (2)')
+  await expect.poll(lines).toEqual(['r1001:k:sel', 'r1002:k:sel', 'r1003:s'])
+  // a térkép a kiválasztott útra közelít (a minta-Kéktúra Visegrád és Pilisszentlászló között)
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const m = (window as unknown as { __terkepMap: { getZoom: () => number; getCenter: () => { lng: number; lat: number } } })
+          .__terkepMap
+        const c = m.getCenter()
+        return m.getZoom() > 10 && Math.abs(c.lng - 18.94) < 0.1 && Math.abs(c.lat - 47.756) < 0.1
+      }),
+    )
+    .toBe(true)
+  await page.screenshot({ path: info.outputPath('turistaut.png') })
+
+  // szakasz megnyitása, majd Vissza a szülőhöz, Vissza a szűrőkhöz
+  await card.getByRole('button', { name: /Visegrád – Dobogókő/ }).click()
+  await expect(card).toContainText('Része ennek')
+  await page.goBack()
+  await expect(card).toContainText('Szakaszok (2)')
+  await page.goBack()
+  await expect(card).toBeHidden()
+  await expect(page.getByTestId('trail-filter')).toBeVisible()
+
+  // a ✕ szakaszból is egyszerre zárja be (nem a szülőhöz lép vissza)
+  await filter.getByTestId('trail-hit').first().click()
+  await card.getByRole('button', { name: /Visegrád – Dobogókő/ }).click()
+  await card.getByRole('button', { name: 'Bezárás' }).click()
+  await expect(card).toBeHidden()
 })

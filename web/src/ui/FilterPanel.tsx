@@ -4,6 +4,7 @@ import { isDefault, toggle } from '../filters/filter'
 import { compareHu, formatCount } from '../filters/text'
 import { useStore } from '../state/store'
 import { CategoryIcon } from './CategoryIcon'
+import { TrailFilter } from './TrailFilter'
 
 const TIERS: { t: Tier; label: string; hint: string }[] = [
   { t: 1, label: 'Kiemelt', hint: 'országos jelentőségű' },
@@ -145,6 +146,8 @@ export function FilterPanel() {
           <Toggle label="360°-os képpel (utcakép, gömbpanoráma)" on={filters.pano} onChange={(v) => setFilters({ pano: v })} />
         </div>
       </section>
+
+      <TrailFilter />
 
     </div>
   )

@@ -4,6 +4,7 @@ Példák:
   terkep build --sample            # mintaadat -> data/sample/ (hálózat nélkül)
   terkep boundaries                # tartalék vármegyehatárok (geoBoundaries + NE)
   terkep fetch osm                 # Geofabrik PBF -> rekordok + OSM-határok
+  terkep fetch trails              # jelzett turistautak (route=hiking) -> data/trails/
   terkep fetch wikidata            # osztályfák, felderítés, dúsítás
   terkep fetch huwiki | commons
   terkep discover all              # túraoldalak felderítése (riport)
@@ -117,6 +118,14 @@ def cmd_fetch(args) -> int:
         old = commons.load_meta()
         meta = {**old, **commons.fetch_meta(client, files - set(old))}
         commons.save_meta(meta)
+    elif what == "trails":
+        from .sources import trails
+
+        pbf = Path(args.pbf) if args.pbf else CACHE_DIR / "osm" / "hungary-latest.osm.pbf"
+        if not pbf.exists():
+            log.error("Nincs PBF (%s) – előbb: terkep fetch osm", pbf)
+            return 1
+        trails.extract(pbf)
     elif what == "streetview":
         import os
 
@@ -278,7 +287,7 @@ def main(argv: list[str] | None = None) -> int:
     b.set_defaults(func=cmd_boundaries)
 
     f = sub.add_parser("fetch", help="forrás letöltése")
-    f.add_argument("what", choices=["osm", "wikidata", "huwiki", "commons", "streetview", "site"])
+    f.add_argument("what", choices=["osm", "trails", "wikidata", "huwiki", "commons", "streetview", "site"])
     f.add_argument("site", nargs="?", default="all")
     f.add_argument("--pbf", help="helyi PBF-fájl (letöltés helyett)")
     f.add_argument("--refresh", action="store_true", help="Wikidata osztályfák újratöltése")

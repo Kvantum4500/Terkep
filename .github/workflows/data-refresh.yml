@@ -75,6 +75,9 @@ jobs:
       - name: OpenStreetMap (Geofabrik PBF, tükörrel)
         run: terkep fetch osm
 
+      - name: Jelzett turistautak (OSM)
+        run: terkep fetch trails
+
       - name: OSM-kivonat mentése a gyorsítótárba
         uses: actions/cache/save@v4
         with:
@@ -154,3 +157,4 @@ jobs:
             data/meta.json
             data/id_aliases.json
             data/megyek.geojson
+            data/trails

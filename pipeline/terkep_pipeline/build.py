@@ -100,15 +100,18 @@ def run(
             dropped.append({"id": poi.id, "nev": poi.name, "ok": "országon kívül (bbox)"})
             continue
         code = counties.lookup(poi.lat, poi.lon, snap_m=snap)
+        expected = next(
+            (r.extra.get("expected_county") for r in cl.records if r.extra.get("expected_county")), None
+        )
+        if code is None and sample and expected:
+            # a kézi mintaadat közelítő koordinátája a határon túlra eshet (pl. Írott-kő)
+            code = expected
         if code is None:
             dropped.append({"id": poi.id, "nev": poi.name, "ok": "egyik vármegyébe sem esik"})
             continue
         poi.county = code
         if not poi.settlement and settlements is not None:
             poi.settlement = settlements.lookup(poi.lat, poi.lon)
-        expected = next(
-            (r.extra.get("expected_county") for r in cl.records if r.extra.get("expected_county")), None
-        )
         if expected and expected != code:
             mismatch.append({"id": poi.id, "nev": poi.name, "elvart": expected, "kapott": code})
             if sample:

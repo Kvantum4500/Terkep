@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { MapController, type MapView as MapViewState, type RoutePointMarker } from '../map/MapController'
-import { pointWaypoint, routeTo } from '../state/actions'
+import { openTrail, pointWaypoint, routeTo } from '../state/actions'
+import { loadTrailIndex, trailFeatures, trailIds } from '../trails/data'
 import { useStore } from '../state/store'
 
 const ROLE_HINT = { start: 'az indulási pontot', via: 'a köztes pontot', end: 'a célt' } as const
@@ -21,6 +22,8 @@ export function MapView({ onController }: { onController: (c: MapController | nu
   const pickRole = useStore((s) => s.pickRole)
   const panelOpen = useStore((s) => s.panelOpen)
   const compat = useStore((s) => s.compatMap)
+  const trailFilter = useStore((s) => s.trailFilter)
+  const selectedTrail = useStore((s) => s.selectedTrail)
   const firstCounties = useRef(true)
   const lastView = useRef<MapViewState | undefined>(undefined)
 
@@ -43,6 +46,7 @@ export function MapView({ onController }: { onController: (c: MapController | nu
       },
       onMapPoint: (role, p) => routeTo(pointWaypoint(p.lat, p.lon, p.poiId), role),
       onSelectAlt: (i) => useStore.getState().setRouteResult({ active: i }),
+      onSelectTrail: (id) => openTrail(id),
     })
     ctl.current = c
     onController(c)
@@ -80,7 +84,32 @@ export function MapView({ onController }: { onController: (c: MapController | nu
   }, [selected, data])
 
   useEffect(() => ctl.current?.setBasemap(basemap), [basemap])
-  useEffect(() => ctl.current?.setTrails(trails && basemap !== 'none'), [trails, basemap])
+  // a saját (szűrhető) turistaút-réteg mellett a Waymarked-réteg zavaró lenne
+  const ownTrails = trailFilter.colors.length > 0 || selectedTrail !== null
+  useEffect(() => ctl.current?.setTrails(trails && basemap !== 'none' && !ownTrails), [trails, basemap, ownTrails, compat])
+
+  // jelzett turistautak: a szűrőnek megfelelők és a kiválasztott (szakaszaival)
+  useEffect(() => {
+    let alive = true
+    void loadTrailIndex().then(async (idx) => {
+      if (!idx || !alive) return
+      const ids = selectedTrail ? trailIds(idx, selectedTrail) : []
+      const fc = await trailFeatures(idx, trailFilter, ids)
+      if (alive) void ctl.current?.setTrailLines(fc)
+    })
+    return () => {
+      alive = false
+    }
+  }, [trailFilter, selectedTrail, compat])
+
+  // kiválasztáskor ráközelítés
+  useEffect(() => {
+    if (!selectedTrail) return
+    void loadTrailIndex().then((idx) => {
+      const t = idx?.byId.get(selectedTrail)
+      if (t) void ctl.current?.fitBox(t.b)
+    })
+  }, [selectedTrail])
 
   useEffect(() => {
     const pts: RoutePointMarker[] = []

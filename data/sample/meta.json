@@ -1,8 +1,8 @@
 {
  "version": 1,
- "generated": "2026-11-14T18:39:01Z",
+ "generated": "2026-11-19T08:22:57Z",
  "sample": true,
- "boundaries": "geoBoundaries HUN ADM1 (CC0) + Natural Earth (közkincs, Budapest)",
+ "boundaries": "OpenStreetMap közreműködők (ODbL)",
  "counts": {
   "total": 132,
   "by_tier": {
@@ -366,7 +366,9 @@
   "showcave": 8,
   "ruin": 16,
   "approx": 32,
-  "sample": 64
+  "sample": 64,
+  "streetview": 128,
+  "pano": 256
  },
  "sources": {
   "osm": {
