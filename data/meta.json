@@ -1,32 +1,32 @@
 {
  "version": 1,
- "generated": "2026-11-16T14:46:34Z",
+ "generated": "2026-11-19T17:32:59Z",
  "sample": false,
  "boundaries": "OpenStreetMap közreműködők (ODbL)",
  "counts": {
-  "total": 22115,
+  "total": 22146,
   "by_tier": {
-   "1": 534,
-   "2": 2653,
-   "3": 18928
+   "1": 527,
+   "2": 2657,
+   "3": 18962
   },
   "by_cat": {
    "barlang": 1776,
-   "csucs": 4186,
-   "egyeb": 318,
+   "csucs": 4187,
+   "egyeb": 337,
    "forras": 2696,
    "hid": 125,
    "kastely": 982,
    "kert": 71,
    "kilato": 627,
    "kilatopont": 384,
-   "rom": 893,
-   "szikla": 793,
+   "rom": 895,
+   "szikla": 794,
    "templom": 7784,
-   "to": 194,
+   "to": 200,
    "var": 212,
    "vizeses": 39,
-   "volgy": 1035
+   "volgy": 1037
   },
   "by_county": {
    "BA": {
@@ -63,7 +63,7 @@
    },
    "BK": {
     "csucs": 94,
-    "egyeb": 49,
+    "egyeb": 55,
     "forras": 7,
     "hid": 4,
     "kastely": 30,
@@ -72,7 +72,7 @@
     "kilatopont": 4,
     "rom": 33,
     "szikla": 1,
-    "templom": 344,
+    "templom": 343,
     "to": 22,
     "var": 4,
     "vizeses": 1
@@ -80,7 +80,7 @@
    "BU": {
     "barlang": 132,
     "csucs": 75,
-    "egyeb": 107,
+    "egyeb": 111,
     "forras": 19,
     "hid": 23,
     "kastely": 44,
@@ -93,11 +93,11 @@
     "to": 5,
     "var": 3,
     "vizeses": 1,
-    "volgy": 7
+    "volgy": 8
    },
    "BZ": {
     "barlang": 603,
-    "csucs": 741,
+    "csucs": 742,
     "egyeb": 10,
     "forras": 896,
     "hid": 3,
@@ -106,8 +106,8 @@
     "kilato": 47,
     "kilatopont": 43,
     "rom": 58,
-    "szikla": 160,
-    "templom": 818,
+    "szikla": 161,
+    "templom": 817,
     "to": 11,
     "var": 37,
     "vizeses": 9,
@@ -162,14 +162,14 @@
    },
    "HB": {
     "csucs": 144,
-    "egyeb": 1,
+    "egyeb": 2,
     "forras": 7,
     "hid": 3,
     "kastely": 30,
     "kert": 6,
     "kilato": 41,
     "kilatopont": 8,
-    "rom": 17,
+    "rom": 18,
     "templom": 239,
     "to": 23,
     "var": 4,
@@ -219,7 +219,7 @@
     "kilatopont": 28,
     "rom": 97,
     "szikla": 75,
-    "templom": 231,
+    "templom": 230,
     "to": 6,
     "var": 21,
     "volgy": 143
@@ -245,20 +245,20 @@
    "PE": {
     "barlang": 242,
     "csucs": 634,
-    "egyeb": 37,
+    "egyeb": 44,
     "forras": 220,
     "hid": 12,
-    "kastely": 105,
+    "kastely": 107,
     "kert": 6,
     "kilato": 59,
     "kilatopont": 104,
-    "rom": 165,
+    "rom": 166,
     "szikla": 135,
-    "templom": 657,
-    "to": 17,
+    "templom": 659,
+    "to": 23,
     "var": 23,
     "vizeses": 5,
-    "volgy": 213
+    "volgy": 214
    },
    "SO": {
     "csucs": 94,
@@ -302,7 +302,7 @@
     "kilatopont": 12,
     "rom": 19,
     "szikla": 1,
-    "templom": 272,
+    "templom": 271,
     "to": 2,
     "var": 8,
     "vizeses": 2,
@@ -311,10 +311,10 @@
    "VA": {
     "barlang": 12,
     "csucs": 78,
-    "egyeb": 8,
+    "egyeb": 9,
     "forras": 51,
     "hid": 4,
-    "kastely": 107,
+    "kastely": 106,
     "kert": 4,
     "kilato": 28,
     "kilatopont": 3,
@@ -331,13 +331,13 @@
     "egyeb": 13,
     "forras": 262,
     "hid": 1,
-    "kastely": 54,
+    "kastely": 53,
     "kert": 7,
     "kilato": 45,
     "kilatopont": 35,
     "rom": 85,
     "szikla": 92,
-    "templom": 519,
+    "templom": 521,
     "to": 5,
     "var": 20,
     "vizeses": 3,
@@ -563,7 +563,9 @@
   "showcave": 8,
   "ruin": 16,
   "approx": 32,
-  "sample": 64
+  "sample": 64,
+  "streetview": 128,
+  "pano": 256
  },
  "sources": {
   "osm": {
