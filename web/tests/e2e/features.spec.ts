@@ -118,6 +118,8 @@ async function layout(page: Page) {
 }
 
 test('a térképet a panel semmilyen nézetben nem takarja', async ({ page }, info) => {
+  // 5 nézet × 4 panelállás egy tesztben: a szoftveres WebGL-lel ez a 60 s-os keret közelében jár
+  test.slow()
   await mockServices(page)
   const views: [number, number][] = [
     [360, 780],
@@ -148,7 +150,9 @@ test('a térképet a panel semmilyen nézetben nem takarja', async ({ page }, in
       expect(l.overlapPx, `${w}x${h} ${step}`).toBeLessThanOrEqual(1)
       expect(l.mapShare, `${w}x${h} ${step}`).toBeGreaterThanOrEqual(0.39)
     }
-    await page.screenshot({ path: info.outputPath(`elrendezes-${w}x${h}.png`) })
+    // CSS-pixelben: a Pixel 7 2,6-os képarányával az 1920×1080-as nézet ~5000×2800 px-es
+    // képe a szoftveres renderelővel percekig tartana
+    await page.screenshot({ path: info.outputPath(`elrendezes-${w}x${h}.png`), scale: 'css' })
     await page.getByTestId('poi-card').getByRole('button', { name: 'Bezárás' }).click()
     await expect(page.getByTestId('poi-card')).toBeHidden()
     await page.getByTestId('tab-filters').click()
