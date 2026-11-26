@@ -28,6 +28,9 @@ log = logging.getLogger(__name__)
 
 CLASS_MAP_PATH = BUILD_DIR / "wikidata_classes.json"
 SKIPPED_PATH = BUILD_DIR / "wikidata_skipped_classes.json"
+# A csúcs-kategóriájú elemek P31-osztályainak címkéje (a build-riport diagnosztikájához)
+CLASS_LABELS_PATH = BUILD_DIR / "wikidata_class_labels.json"
+LABEL_BATCH = 200
 BATCH_CLASSES = 60
 BATCH_ITEMS = 250
 # A felezhető kötegeknél az időtúllépés ugyanarra a lekérdezésre ismétlődik: kevés
@@ -213,6 +216,8 @@ def rows_to_records(rows: list[dict], class_to_root: dict[str, str]) -> list[Sou
                 ele = None
         heritage = "h" in r
         extra: dict = {"heritage": True} if heritage else {}
+        if classes:
+            extra["classes"] = classes
         if "ps" in r:
             extra["pano"] = _commons_file(r["ps"]["value"])
         out.append(
@@ -271,18 +276,44 @@ def fetch(client: PoliteClient, osm_qids: Iterable[str], refresh_classes: bool =
     # jövőket megtartjuk (azonosító szerint kapcsolódnak, a kategóriát az OSM adja).
     keep = [r for r in records if r.cat is not None or r.ref in set(osm_qids)]
     log.info("Wikidata: %d rekord", len(keep))
+    _save_peak_class_labels(client, keep)
     return keep
+
+
+def class_labels(client: PoliteClient, qids: Iterable[str]) -> dict[str, dict[str, str]]:
+    """QID -> {"en": …, "hu": …} címkék (ami van)."""
+    out: dict[str, dict[str, str]] = {}
+    for chunk in _chunks(sorted(set(qids)), LABEL_BATCH):
+        values = " ".join(f"wd:{q}" for q in chunk)
+        rows = _sparql(
+            client,
+            f"SELECT ?q ?l ?lang WHERE {{ VALUES ?q {{ {values} }} ?q rdfs:label ?l . "
+            f'BIND(LANG(?l) AS ?lang) FILTER(?lang IN ("en", "hu")) }}',
+        )
+        for r in rows:
+            out.setdefault(_qid(r["q"]["value"]), {})[r["lang"]["value"]] = r["l"]["value"]
+    return out
+
+
+def _save_peak_class_labels(client: PoliteClient, recs: list[SourceRecord]) -> None:
+    """A csúcsként besorolt elemek osztályainak címkéje a riporthoz (tájegység-keresés).
+    Csak diagnosztika: hiba esetén a letöltés nem áll le."""
+    qids = {c for r in recs if r.cat == "csucs" for c in r.extra.get("classes", [])}
+    try:
+        labels = class_labels(client, qids)
+    except RuntimeError as exc:
+        log.warning("Wikidata-osztálycímkék nem érhetők el (%s) – a riportban QID-del jelennek meg", exc)
+        return
+    CLASS_LABELS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    CLASS_LABELS_PATH.write_text(json.dumps(labels, ensure_ascii=False, sort_keys=True), encoding="utf-8")
 
 
 def verify_config(client: PoliteClient) -> list[str]:
     """A categories.yaml QID-jeinek angol címkéje egyezik-e a várt címkével."""
     roots = config.categories()["wikidata_classes"]
-    values = " ".join(f"wd:{r['qid']}" for r in roots)
-    rows = _sparql(
-        client,
-        f'SELECT ?q ?l WHERE {{ VALUES ?q {{ {values} }} ?q rdfs:label ?l . FILTER(LANG(?l) = "en") }}',
-    )
-    got = {_qid(r["q"]["value"]): r["l"]["value"].lower() for r in rows}
+    got = {
+        q: v["en"].lower() for q, v in class_labels(client, [r["qid"] for r in roots]).items() if "en" in v
+    }
     problems = []
     for r in roots:
         label = got.get(r["qid"])

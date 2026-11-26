@@ -226,3 +226,83 @@ def test_truncated_200_response_splits_and_is_not_cached(tmp_path):
     before = len(c.session.sizes)
     discover(c, [f"Q{i}" for i in range(1, 5)])
     assert c.session.sizes[before] == 4
+
+
+def test_rows_to_records_keeps_classes():
+    rows = [{"item": {"type": "uri", "value": E + "Q1"}, "l": lit("Zselic"), "classes": lit("Q54050|Q82794")}]
+    rec = rows_to_records(rows, {"Q54050": "Q54050"})[0]
+    assert rec.cat == "csucs" and rec.extra["classes"] == ["Q54050", "Q82794"]
+
+
+class _LabelSparql:
+    """Címke-lekérdezés: minden QID-re angol és magyar címke."""
+
+    def __init__(self):
+        self.queries = 0
+
+    def post(self, url, data, headers=None, **kw):
+        import json as _json
+        import re
+
+        from terkep_pipeline.http import Response
+
+        self.queries += 1
+        qids = re.findall(r"wd:(Q\d+)", data["query"])
+        rows = []
+        for q in qids:
+            for lang in ("en", "hu"):
+                rows.append(
+                    {"q": {"type": "uri", "value": E + q}, "l": lit(f"{q}-{lang}"), "lang": lit(lang)}
+                )
+        return Response(url, 200, _json.dumps({"results": {"bindings": rows}}), {})
+
+
+def test_class_labels_in_batches():
+    from terkep_pipeline.sources import wikidata
+
+    c = _LabelSparql()
+    qids = [f"Q{i}" for i in range(1, wikidata.LABEL_BATCH + 6)]
+    labels = wikidata.class_labels(c, qids)
+    assert c.queries == 2
+    assert labels["Q1"] == {"en": "Q1-en", "hu": "Q1-hu"} and len(labels) == len(qids)
+
+
+def test_peak_class_report_lists_wikidata_only_peaks():
+    from terkep_pipeline import config
+    from terkep_pipeline.build import wikidata_only_peak_classes
+    from terkep_pipeline.conflate import conflate
+    from terkep_pipeline.models import SourceRecord
+
+    recs = [
+        # tájegység: csak Wikidata
+        SourceRecord(
+            source="wikidata",
+            ref="Q1",
+            name="Zselic",
+            lat=46.2,
+            lon=17.8,
+            cat="csucs",
+            wikidata="Q1",
+            extra={"classes": ["Q54050", "Q82794"]},
+        ),
+        # valódi csúcs OSM-ponttal: nem kerül a listába
+        SourceRecord(
+            source="osm", ref="n1", name="Kékes", lat=47.873, lon=20.009, cat="csucs", wikidata="Q2"
+        ),
+        SourceRecord(
+            source="wikidata",
+            ref="Q2",
+            name="Kékes",
+            lat=47.873,
+            lon=20.009,
+            cat="csucs",
+            wikidata="Q2",
+            extra={"classes": ["Q8502"]},
+        ),
+    ]
+    conf = conflate(recs, ["osm", "wikidata"], config.sources()["sources"])
+    lines = wikidata_only_peak_classes(conf, labels={"Q82794": {"hu": "régió", "en": "region"}})
+    text = "\n".join(lines)
+    assert "1 csúcsnak nincs OSM-pontja" in text
+    assert "| Q82794 | régió / region | 1 | Zselic |" in text
+    assert "Q8502" not in text and "Kékes" not in text

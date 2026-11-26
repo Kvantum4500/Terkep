@@ -5,7 +5,7 @@ from __future__ import annotations
 import csv
 import json
 import logging
-from collections import Counter
+from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -224,7 +224,57 @@ def write_reports(
             f"- Wikidata-osztály kimaradt a felderítésből (időtúllépés): {len(skipped)} – "
             + ", ".join(skipped[:20])
         )
+    lines += wikidata_only_peak_classes(conf)
     (out / "report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _class_labels() -> dict[str, dict[str, str]]:
+    from .sources.wikidata import CLASS_LABELS_PATH
+
+    try:
+        return json.loads(CLASS_LABELS_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def wikidata_only_peak_classes(
+    conf: Conflator, labels: dict[str, dict[str, str]] | None = None, top: int = 25
+) -> list[str]:
+    """Riport-szakasz: a csak Wikidatából (és hu-wikiből) jövő csúcsok P31-osztályai.
+
+    Ezek között vannak a tájegységek (Zselic, Göcsej), amelyeket az osztályuk alapján
+    lehet kizárni (categories.yaml: wikidata_exclude)."""
+    labels = _class_labels() if labels is None else labels
+    counts: Counter[str] = Counter()
+    examples: dict[str, list[str]] = defaultdict(list)
+    n = 0
+    for cl in conf.clusters:
+        if cl.cat != "csucs" or not cl.sources <= {"wikidata", "huwiki"}:
+            continue
+        item = next((r for r in cl.records if r.source == "wikidata"), None)
+        if item is None:
+            continue
+        n += 1
+        for c in item.extra.get("classes", []):
+            counts[c] += 1
+            if len(examples[c]) < 4:
+                examples[c].append(cl.name)
+    if not n:
+        return []
+    lines = [
+        "",
+        "## Csak Wikidatából jövő csúcsok osztályai",
+        "",
+        f"{n} csúcsnak nincs OSM-pontja; a P31-osztályaik (a tájegységek kiszűréséhez):",
+        "",
+        "| Osztály | Címke | Db | Példák |",
+        "|---|---|---:|---|",
+    ]
+    for c, k in counts.most_common(top):
+        lab = labels.get(c, {})
+        name = " / ".join(x for x in (lab.get("hu"), lab.get("en")) if x) or "?"
+        lines.append(f"| {c} | {name} | {k} | {', '.join(examples[c])} |")
+    return lines
 
 
 def load_all_records() -> dict[str, list[SourceRecord]]:
