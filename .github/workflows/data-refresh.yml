@@ -37,8 +37,8 @@ jobs:
       run:
         working-directory: pipeline
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
           cache: pip
@@ -48,7 +48,7 @@ jobs:
       # A gyorsítótárat külön állítjuk vissza és mentjük, hogy egy későbbi lépés
       # hibájánál is megmaradjon (különben a Wikidata-letöltés újra 12+ perc).
       - name: Letöltési gyorsítótár visszaállítása (Wikidata, Wikipédia, oldalak)
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: |
             pipeline/cache/http
@@ -66,7 +66,7 @@ jobs:
       # letöltőszerverek épp nem érhetők el, a legutóbbi példánnyal megy tovább,
       # és egy hétnél frissebb példányt nem tölt le újra.
       - name: OSM-kivonat visszaállítása a gyorsítótárból
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: pipeline/cache/osm
           key: terkep-pbf-${{ github.run_id }}
@@ -81,7 +81,7 @@ jobs:
       # csak akkor ment új (kb. 315 MB-os) bejegyzést, ha a kivonat tényleg változott
       # (a GitHub-gyorsítótár 10 GB-os keretét különben gyorsan kitöltené)
       - name: OSM-kivonat mentése a gyorsítótárba
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         continue-on-error: true
         with:
           path: pipeline/cache/osm
@@ -127,7 +127,7 @@ jobs:
 
       - name: Letöltési gyorsítótár mentése
         if: always()
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: |
             pipeline/cache/http
@@ -137,7 +137,7 @@ jobs:
 
       - name: Riportok
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: adatfrissites-riport
           path: |
@@ -146,7 +146,7 @@ jobs:
           retention-days: 30
 
       - name: PR a friss adattal
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           # a PR abba az ágba megy, amelyen a workflow fut (alapértelmezett ág)
           base: ${{ github.ref_name }}
