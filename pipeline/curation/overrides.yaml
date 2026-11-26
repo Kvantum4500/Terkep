@@ -4,12 +4,11 @@
 # exclude:        ezeket a pontokat kihagyjuk
 # merge:          rekordkulcs-listák (forrás:ref), amelyeket egy pontba vonunk össze
 #
-# Példa:
-# overrides:
-#   Q1234567: {cat: kastely, tier: 1}
-# exclude: [n123456]
-# merge:
-#   - ["osm:w1234", "wikidata:Q42"]
-overrides: {}
-exclude: []
+# Csak olyan helyet emelj ki kézzel, amelyet az automatikus pontozás (kevés
+# Wikidata/Wikipédia-jel miatt) alulértékel, de országosan ismert.
+overrides:
+  Q977012:     {tier: 1}   # Tákosi református templom („mezítlábas Notre-Dame”)
+  n4971890221: {tier: 1}   # Tiszakürti Arborétum (Wikidata-elem nélkül került be)
+exclude:
+  - Q871818   # Cserehát – tájegység (a Wikidata csak „domb”-ként jelöli, kistáj-osztálya nincs)
 merge: []

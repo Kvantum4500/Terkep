@@ -42,6 +42,14 @@ from terkep_pipeline.categorize import categorize_osm, categorize_wikidata
         ({"historic": "bridge", "name": "Kilenclyukú híd"}, None, ("hid", "történelmi híd")),
         ({"tourism": "viewpoint", "man_made": "tower", "name": "Erzsébet-kilátó"}, None, ("kilato", None)),
         ({"man_made": "tower", "tower:type": "observation", "name": "Kilátó"}, None, ("kilato", None)),
+        # valós eset: az Erzsébet-kilátó épületként van felcímkézve
+        (
+            {"building": "tower", "tower:type": "observation", "name": "Erzsébet-kilátó"},
+            None,
+            ("kilato", None),
+        ),
+        ({"building": "tower", "name": "Kaán Károly-kilátó"}, None, ("kilato", None)),
+        ({"building": "tower", "name": "Víztorony"}, None, None),
         ({"tourism": "viewpoint", "name": "Kilátópont"}, None, ("kilatopont", None)),
         ({"natural": "cave_entrance", "name": "Baradla-barlang"}, None, ("barlang", None)),
         ({"natural": "cliff", "name": "Bazaltorgonák"}, None, ("szikla", "bazaltorgona")),

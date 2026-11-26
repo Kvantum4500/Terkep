@@ -3,17 +3,20 @@
 1. Alosztályfák: minden gyökérosztály (categories.yaml) P279* fája, egyszer
    letöltve és gyorsítótárazva -> osztály -> gyökér leképezés.
 2. Felderítés: magyarországi (P17 = Q28), koordinátás elemek a fák
-   osztályaiból, `VALUES` blokkokban (path-lekérdezés helyett – ez elkerüli a
-   legtöbb időtúllépést).
+   osztályaiból, `VALUES` blokkokban (path-lekérdezés helyett). Ha egy köteg
+   időtúllép (a WDQS 60 mp-es korlátja), kettévágjuk; a magában is hibás
+   osztályt kihagyjuk és jelentjük.
 3. Dúsítás: QID-kötegek (felderítés + OSM wikidata=* címkék): magyar név és
    leírás, kép, sitelink-szám, magyar Wikipédia-cikk, védettség, magasság.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 from collections.abc import Iterable
+from pathlib import Path
 from urllib.parse import unquote
 
 from .. import BUILD_DIR, config
@@ -24,22 +27,41 @@ from ..models import FLAG_HERITAGE, SourceRecord
 log = logging.getLogger(__name__)
 
 CLASS_MAP_PATH = BUILD_DIR / "wikidata_classes.json"
-BATCH_CLASSES = 150
+SKIPPED_PATH = BUILD_DIR / "wikidata_skipped_classes.json"
+# A csúcs-kategóriájú elemek P31-osztályainak címkéje (a build-riport diagnosztikájához)
+CLASS_LABELS_PATH = BUILD_DIR / "wikidata_class_labels.json"
+LABEL_BATCH = 200
+BATCH_CLASSES = 60
 BATCH_ITEMS = 250
+# A felezhető kötegeknél az időtúllépés ugyanarra a lekérdezésre ismétlődik: kevés
+# újrapróbálás, utána felezés. A nem felezhető (vagy már kicsi) lekérdezések türelmesebbek.
+SPLIT_ATTEMPTS = 2
+SPARQL_ATTEMPTS = 5
+# Ennyi egyenként is sikertelen osztály után a szolgáltatást elérhetetlennek tekintjük.
+MAX_SKIPPED_CLASSES = 10
 ENTITY = "http://www.wikidata.org/entity/"
 
 
-def _sparql(client: PoliteClient, query: str) -> list[dict]:
+def _sparql(client: PoliteClient, query: str, attempts: int = SPARQL_ATTEMPTS) -> list[dict]:
     url = config.source_cfg("wikidata")["sparql_url"]
+    data = {"query": query, "format": "json"}
     resp = client.post(
         url,
-        data={"query": query, "format": "json"},
+        data=data,
         headers={"Accept": "application/sparql-results+json"},
         timeout=300,
+        attempts=attempts,
     )
     if resp.status >= 400:
         raise RuntimeError(f"SPARQL hiba {resp.status}: {resp.text[:300]}")
-    return resp.json()["results"]["bindings"]
+    try:
+        return resp.json()["results"]["bindings"]
+    except (ValueError, KeyError, TypeError) as exc:
+        # A WDQS időtúllépéskor 200-as státusszal is adhat csonka választ (a folyam
+        # közepére írja a hibát): ezt hibának vesszük (a köteg kettéosztódik), és nem
+        # hagyjuk a gyorsítótárban, különben a következő futás is ezen akadna el.
+        client.forget("POST", url, data)
+        raise RuntimeError(f"SPARQL: hibás (csonka) válasz: {exc}") from exc
 
 
 def _qid(uri: str) -> str:
@@ -51,10 +73,29 @@ def _chunks(items: list, n: int) -> Iterable[list]:
         yield items[i : i + n]
 
 
-def class_map(client: PoliteClient, refresh: bool = False) -> dict[str, str]:
-    """osztály QID -> gyökér QID (a categories.yaml sorrendjében az első nyer)."""
-    if CLASS_MAP_PATH.exists() and not refresh:
-        return json.loads(CLASS_MAP_PATH.read_text(encoding="utf-8"))
+def _roots_fingerprint() -> str:
+    """A gyökérosztály-lista és a kizárások ujjlenyomata: ha a categories.yaml
+    változik, a gyorsítótárazott osztálytérkép érvénytelen."""
+    cats = config.categories()
+    key = {
+        "roots": [r["qid"] for r in cats["wikidata_classes"]],
+        "exclude": sorted(cats.get("wikidata_exclude") or []),
+    }
+    return hashlib.sha256(json.dumps(key, sort_keys=True).encode()).hexdigest()[:16]
+
+
+def class_map(client: PoliteClient, refresh: bool = False, path: Path | None = None) -> dict[str, str]:
+    """osztály QID -> gyökér QID (a categories.yaml sorrendjében az első nyer).
+
+    A térkép gyorsítótárazva van (a CI-ben is); ha a gyökérlista azóta
+    megváltozott (vagy régi formátumú a fájl), újratöltjük."""
+    path = path or CLASS_MAP_PATH
+    fingerprint = _roots_fingerprint()
+    if path.exists() and not refresh:
+        cached = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(cached, dict) and cached.get("fingerprint") == fingerprint:
+            return cached["map"]
+        log.info("A Wikidata-osztálytérkép elavult (a gyökérlista változott), újratöltöm.")
     roots = config.categories()["wikidata_classes"]
     exclude = set(config.categories().get("wikidata_exclude") or [])
     mapping: dict[str, str] = {}
@@ -65,26 +106,58 @@ def class_map(client: PoliteClient, refresh: bool = False) -> dict[str, str]:
         for s in subs:
             if s not in exclude:
                 mapping.setdefault(s, root["qid"])
-    CLASS_MAP_PATH.parent.mkdir(parents=True, exist_ok=True)
-    CLASS_MAP_PATH.write_text(json.dumps(mapping, indent=0, sort_keys=True), encoding="utf-8")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps({"fingerprint": fingerprint, "map": mapping}, indent=0, sort_keys=True), encoding="utf-8"
+    )
     return mapping
 
 
-def discover(client: PoliteClient, classes: Iterable[str]) -> set[str]:
-    """Magyarországi, koordinátás, meg nem szűnt elemek a megadott osztályokból."""
-    found: set[str] = set()
-    for chunk in _chunks(sorted(classes), BATCH_CLASSES):
-        values = " ".join(f"wd:{c}" for c in chunk)
-        q = f"""
+def discover_query(classes: list[str]) -> str:
+    values = " ".join(f"wd:{c}" for c in classes)
+    return f"""
         SELECT DISTINCT ?item WHERE {{
           VALUES ?class {{ {values} }}
           ?item wdt:P31 ?class ; wdt:P17 wd:Q28 ; wdt:P625 ?coord .
           FILTER NOT EXISTS {{ ?item wdt:P576 ?end . }}
         }}"""
-        rows = _sparql(client, q)
-        found.update(_qid(r["item"]["value"]) for r in rows)
+
+
+def discover(client: PoliteClient, classes: Iterable[str]) -> tuple[set[str], list[str]]:
+    """Magyarországi, koordinátás, meg nem szűnt elemek a megadott osztályokból.
+
+    Visszaadja a talált QID-ket és a kihagyott (egyenként is időtúllépő)
+    osztályokat. Ha túl sok osztály hibás, a szolgáltatás valószínűleg nem
+    elérhető: ekkor hibát dob, hogy ne fusson órákig."""
+    found: set[str] = set()
+    skipped: list[str] = []
+    for chunk in _chunks(sorted(classes), BATCH_CLASSES):
+        found |= _discover_split(client, chunk, skipped)
+    if skipped:
+        log.warning("Wikidata felderítés: %d osztály kimaradt időtúllépés miatt: %s", len(skipped), skipped)
     log.info("Wikidata felderítés: %d elem", len(found))
-    return found
+    return found, skipped
+
+
+def _discover_split(client: PoliteClient, classes: list[str], skipped: list[str]) -> set[str]:
+    try:
+        rows = _sparql(client, discover_query(classes), attempts=SPLIT_ATTEMPTS)
+    except RuntimeError as exc:
+        if len(classes) > 1:
+            mid = len(classes) // 2
+            log.info("Wikidata felderítés: %d osztályos köteg sikertelen, kettévágom", len(classes))
+            return _discover_split(client, classes[:mid], skipped) | _discover_split(
+                client, classes[mid:], skipped
+            )
+        skipped.append(classes[0])
+        if len(skipped) > MAX_SKIPPED_CLASSES:
+            raise RuntimeError(
+                f"A Wikidata-lekérdezőszolgáltatás elérhetetlennek tűnik: {len(skipped)} osztály "
+                f"egyenként is sikertelen (utolsó hiba: {exc})"
+            ) from exc
+        log.warning("Wikidata felderítés: a(z) %s osztály kihagyva (%s)", classes[0], exc)
+        return set()
+    return {_qid(r["item"]["value"]) for r in rows}
 
 
 def _parse_point(wkt: str) -> tuple[float, float] | None:
@@ -105,7 +178,7 @@ def enrich_query(qids: list[str]) -> str:
     return f"""
     SELECT ?item (SAMPLE(?coord) AS ?c) (SAMPLE(?label) AS ?l) (SAMPLE(?desc) AS ?d) (SAMPLE(?img) AS ?i)
            (SAMPLE(?sl) AS ?s) (SAMPLE(?article) AS ?a) (SAMPLE(?herit) AS ?h) (SAMPLE(?ele) AS ?e)
-           (SAMPLE(?admLabel) AS ?adm)
+           (SAMPLE(?admLabel) AS ?adm) (SAMPLE(?sphere) AS ?ps)
            (GROUP_CONCAT(DISTINCT STRAFTER(STR(?p31), "{ENTITY}"); separator="|") AS ?classes)
     WHERE {{
       VALUES ?item {{ {values} }}
@@ -119,6 +192,7 @@ def enrich_query(qids: list[str]) -> str:
       OPTIONAL {{ ?item wdt:P2044 ?ele . }}
       OPTIONAL {{ ?item wdt:P131 ?admin . ?admin rdfs:label ?admLabel . FILTER(LANG(?admLabel) = "hu") }}
       OPTIONAL {{ ?item wdt:P31 ?p31 . }}
+      OPTIONAL {{ ?item wdt:P4640 ?sphere . }}
     }} GROUP BY ?item"""
 
 
@@ -141,6 +215,11 @@ def rows_to_records(rows: list[dict], class_to_root: dict[str, str]) -> list[Sou
             except ValueError:
                 ele = None
         heritage = "h" in r
+        extra: dict = {"heritage": True} if heritage else {}
+        if classes:
+            extra["classes"] = classes
+        if "ps" in r:
+            extra["pano"] = _commons_file(r["ps"]["value"])
         out.append(
             SourceRecord(
                 source="wikidata",
@@ -158,7 +237,7 @@ def rows_to_records(rows: list[dict], class_to_root: dict[str, str]) -> list[Sou
                 sitelinks=int(r["s"]["value"]) if "s" in r else 0,
                 flags=FLAG_HERITAGE if heritage else 0,
                 coord_quality="exact" if coords else "none",
-                extra={"heritage": True} if heritage else {},
+                extra=extra,
             )
         )
     return out
@@ -176,11 +255,12 @@ def enrich(client: PoliteClient, qids: Iterable[str], class_to_root: dict[str, s
 
 
 def _fetch_split(client: PoliteClient, qids: list[str]) -> list[dict]:
-    """Időtúllépésnél a köteget kettévágjuk."""
+    """Időtúllépésnél a köteget kettévágjuk; a legkisebb köteg már türelmesebb."""
+    small = len(qids) <= 10
     try:
-        return _sparql(client, enrich_query(qids))
+        return _sparql(client, enrich_query(qids), attempts=SPARQL_ATTEMPTS if small else SPLIT_ATTEMPTS)
     except RuntimeError:
-        if len(qids) <= 10:
+        if small:
             raise
         mid = len(qids) // 2
         return _fetch_split(client, qids[:mid]) + _fetch_split(client, qids[mid:])
@@ -188,24 +268,52 @@ def _fetch_split(client: PoliteClient, qids: list[str]) -> list[dict]:
 
 def fetch(client: PoliteClient, osm_qids: Iterable[str], refresh_classes: bool = False) -> list[SourceRecord]:
     classes = class_map(client, refresh=refresh_classes)
-    found = discover(client, classes.keys())
+    found, skipped = discover(client, classes.keys())
+    SKIPPED_PATH.parent.mkdir(parents=True, exist_ok=True)
+    SKIPPED_PATH.write_text(json.dumps(skipped), encoding="utf-8")
     records = enrich(client, set(found) | set(osm_qids), classes)
     # A felderítésből jövő, de besorolhatatlan elemeket elhagyjuk; az OSM-címkéből
     # jövőket megtartjuk (azonosító szerint kapcsolódnak, a kategóriát az OSM adja).
     keep = [r for r in records if r.cat is not None or r.ref in set(osm_qids)]
     log.info("Wikidata: %d rekord", len(keep))
+    _save_peak_class_labels(client, keep)
     return keep
+
+
+def class_labels(client: PoliteClient, qids: Iterable[str]) -> dict[str, dict[str, str]]:
+    """QID -> {"en": …, "hu": …} címkék (ami van)."""
+    out: dict[str, dict[str, str]] = {}
+    for chunk in _chunks(sorted(set(qids)), LABEL_BATCH):
+        values = " ".join(f"wd:{q}" for q in chunk)
+        rows = _sparql(
+            client,
+            f"SELECT ?q ?l ?lang WHERE {{ VALUES ?q {{ {values} }} ?q rdfs:label ?l . "
+            f'BIND(LANG(?l) AS ?lang) FILTER(?lang IN ("en", "hu")) }}',
+        )
+        for r in rows:
+            out.setdefault(_qid(r["q"]["value"]), {})[r["lang"]["value"]] = r["l"]["value"]
+    return out
+
+
+def _save_peak_class_labels(client: PoliteClient, recs: list[SourceRecord]) -> None:
+    """A csúcsként besorolt elemek osztályainak címkéje a riporthoz (tájegység-keresés).
+    Csak diagnosztika: hiba esetén a letöltés nem áll le."""
+    qids = {c for r in recs if r.cat == "csucs" for c in r.extra.get("classes", [])}
+    try:
+        labels = class_labels(client, qids)
+    except RuntimeError as exc:
+        log.warning("Wikidata-osztálycímkék nem érhetők el (%s) – a riportban QID-del jelennek meg", exc)
+        return
+    CLASS_LABELS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    CLASS_LABELS_PATH.write_text(json.dumps(labels, ensure_ascii=False, sort_keys=True), encoding="utf-8")
 
 
 def verify_config(client: PoliteClient) -> list[str]:
     """A categories.yaml QID-jeinek angol címkéje egyezik-e a várt címkével."""
     roots = config.categories()["wikidata_classes"]
-    values = " ".join(f"wd:{r['qid']}" for r in roots)
-    rows = _sparql(
-        client,
-        f'SELECT ?q ?l WHERE {{ VALUES ?q {{ {values} }} ?q rdfs:label ?l . FILTER(LANG(?l) = "en") }}',
-    )
-    got = {_qid(r["q"]["value"]): r["l"]["value"].lower() for r in rows}
+    got = {
+        q: v["en"].lower() for q, v in class_labels(client, [r["qid"] for r in roots]).items() if "en" in v
+    }
     problems = []
     for r in roots:
         label = got.get(r["qid"])

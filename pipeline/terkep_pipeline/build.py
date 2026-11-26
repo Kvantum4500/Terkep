@@ -5,12 +5,13 @@ from __future__ import annotations
 import csv
 import json
 import logging
-from collections import Counter
+import re
+from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import BUILD_DIR, DATA_DIR, config, records
-from .conflate import Conflator, build_poi, conflate
+from .conflate import Conflator, build_poi, conflate, ensure_unique_ids, merge_close_duplicates
 from .geo import PolygonIndex, in_hu_bbox
 from .models import Poi, SourceRecord
 from .score import assign_tiers
@@ -96,19 +97,26 @@ def run(
         poi = build_poi(cl)
         if poi is None:
             continue
+        why = landscape_reason(cl)
+        if why:
+            dropped.append({"id": poi.id, "nev": poi.name, "ok": why})
+            continue
         if not in_hu_bbox(poi.lat, poi.lon):
             dropped.append({"id": poi.id, "nev": poi.name, "ok": "országon kívül (bbox)"})
             continue
         code = counties.lookup(poi.lat, poi.lon, snap_m=snap)
+        expected = next(
+            (r.extra.get("expected_county") for r in cl.records if r.extra.get("expected_county")), None
+        )
+        if code is None and sample and expected:
+            # a kézi mintaadat közelítő koordinátája a határon túlra eshet (pl. Írott-kő)
+            code = expected
         if code is None:
             dropped.append({"id": poi.id, "nev": poi.name, "ok": "egyik vármegyébe sem esik"})
             continue
         poi.county = code
         if not poi.settlement and settlements is not None:
             poi.settlement = settlements.lookup(poi.lat, poi.lon)
-        expected = next(
-            (r.extra.get("expected_county") for r in cl.records if r.extra.get("expected_county")), None
-        )
         if expected and expected != code:
             mismatch.append({"id": poi.id, "nev": poi.name, "elvart": expected, "kapott": code})
             if sample:
@@ -116,8 +124,13 @@ def run(
                 poi.county = expected
         pois.append(poi)
 
+    pois, merged = merge_close_duplicates(pois)
+    conf.report.deduped += merged
     pois = apply_overrides(pois, conf)
+    conf.report.id_fixes = ensure_unique_ids(pois)
     assign_tiers(pois)
+    if not sample:
+        attach_streetview(pois)
 
     if out_dir is not None:
         from .export import write_outputs
@@ -126,6 +139,24 @@ def run(
     if reports_dir is not None:
         write_reports(reports_dir, pois, conf, dropped, mismatch)
     return BuildResult(pois, conf, dropped, mismatch)
+
+
+def attach_streetview(pois: list[Poi], data: dict[str, dict[str, float]] | None = None) -> int:
+    """A `terkep fetch streetview` eredménye (ha van) a látnivalókhoz."""
+    from .models import FLAG_STREETVIEW
+    from .sources import streetview
+
+    data = streetview.load() if data is None else data
+    n = 0
+    for p in pois:
+        sv = data.get(p.id)
+        if sv:
+            p.sv = sv
+            p.flags |= FLAG_STREETVIEW
+            n += 1
+    if data:
+        log.info("Utcakép %d látnivalónál", n)
+    return n
 
 
 def _boundaries_source() -> str:
@@ -141,6 +172,15 @@ def _csv(path: Path, rows: list[dict]) -> None:
             w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
             w.writeheader()
             w.writerows(rows)
+
+
+def _wikidata_skipped_classes() -> list[str]:
+    from .sources.wikidata import SKIPPED_PATH
+
+    try:
+        return json.loads(SKIPPED_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
 
 
 def write_reports(
@@ -176,10 +216,103 @@ def write_reports(
         "",
         f"- Bizonytalan párosítás: {len(conf.report.ambiguous)} (ambiguous_matches.csv)",
         f"- Párosítatlan megerősítő rekord: {len(conf.report.unmatched)} (unmatched.csv)",
+        f"- Távoli rekord azonos QID-del (QID levéve): {len(conf.report.qid_conflicts)} (qid_conflicts.csv)",
+        f"- Tárgyra mutató QID levéve (szobor, kiállított tárgy, falu): {len(conf.report.subject_qids)}"
+        " (subject_qids.csv)",
+        f"- Azonosító-ütközés javítva: {conf.report.id_fixes}",
         f"- Elvetett pont: {len(dropped)} (dropped.csv)",
         f"- Eltérő vármegye a vártnál: {len(mismatch)} (county_mismatch.csv)",
     ]
+    skipped = _wikidata_skipped_classes()
+    if skipped:
+        lines.append(
+            f"- Wikidata-osztály kimaradt a felderítésből (időtúllépés): {len(skipped)} – "
+            + ", ".join(skipped[:20])
+        )
+    lines += wikidata_only_peak_classes(conf)
     (out / "report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+# A csak Wikidatából jövő csúcsoknál ezek a névvégek tájegységet jeleznek, nem csúcsot.
+LANDSCAPE_SUFFIXES = ("dombság", "hegység", "hegyek")
+LANDSCAPE_PHRASES = ("természetvédelmi terület", "tájvédelmi körzet")
+
+
+def _tokens(name: str) -> list[str]:
+    return [t for t in re.split(r"[\s\-–/(),.]+", name.casefold()) if t]
+
+
+def landscape_reason(cl) -> str | None:
+    """Tájegység-e a csak Wikidatából (és hu-wikiből) jövő „csúcs”.
+
+    Ezeknek nincs OSM-pontjuk, és gyakran tájegységek (Zselic, Göcsej, Zalai-dombság),
+    amelyeket a Wikidata „domb”-ként is besorol. Jel: a Wikidata-osztály (kistáj,
+    középtáj, természetvédelmi terület – categories.yaml: wikidata_not_peak) vagy a
+    névvég. Az OSM-pontos csúcsokhoz nem nyúl (ott a hegy maga megvan)."""
+    if cl.cat != "csucs" or not cl.sources <= {"wikidata", "huwiki"}:
+        return None
+    item = next((r for r in cl.records if r.source == "wikidata"), None)
+    if item is None:
+        return None
+    not_peak = set(config.categories().get("wikidata_not_peak") or [])
+    hit = not_peak & set(item.extra.get("classes", []))
+    if hit:
+        return f"tájegység, nem csúcs (Wikidata-osztály: {', '.join(sorted(hit))})"
+    name = cl.name.casefold()
+    if any(t.endswith(sfx) for t in _tokens(name) for sfx in LANDSCAPE_SUFFIXES) or any(
+        ph in name for ph in LANDSCAPE_PHRASES
+    ):
+        return "tájegység, nem csúcs (név)"
+    return None
+
+
+def _class_labels() -> dict[str, dict[str, str]]:
+    from .sources.wikidata import CLASS_LABELS_PATH
+
+    try:
+        return json.loads(CLASS_LABELS_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def wikidata_only_peak_classes(
+    conf: Conflator, labels: dict[str, dict[str, str]] | None = None, top: int = 25
+) -> list[str]:
+    """Riport-szakasz: a csak Wikidatából (és hu-wikiből) jövő csúcsok P31-osztályai.
+
+    Ezek között vannak a tájegységek (Zselic, Göcsej), amelyeket az osztályuk alapján
+    lehet kizárni (categories.yaml: wikidata_exclude)."""
+    labels = _class_labels() if labels is None else labels
+    counts: Counter[str] = Counter()
+    examples: dict[str, list[str]] = defaultdict(list)
+    n = 0
+    for cl in conf.clusters:
+        if cl.cat != "csucs" or not cl.sources <= {"wikidata", "huwiki"}:
+            continue
+        item = next((r for r in cl.records if r.source == "wikidata"), None)
+        if item is None:
+            continue
+        n += 1
+        for c in item.extra.get("classes", []):
+            counts[c] += 1
+            if len(examples[c]) < 4:
+                examples[c].append(cl.name)
+    if not n:
+        return []
+    lines = [
+        "",
+        "## Csak Wikidatából jövő csúcsok osztályai",
+        "",
+        f"{n} csúcsnak nincs OSM-pontja; a P31-osztályaik (a tájegységek kiszűréséhez):",
+        "",
+        "| Osztály | Címke | Db | Példák |",
+        "|---|---|---:|---|",
+    ]
+    for c, k in counts.most_common(top):
+        lab = labels.get(c, {})
+        name = " / ".join(x for x in (lab.get("hu"), lab.get("en")) if x) or "?"
+        lines.append(f"| {c} | {name} | {k} | {', '.join(examples[c])} |")
+    return lines
 
 
 def load_all_records() -> dict[str, list[SourceRecord]]:

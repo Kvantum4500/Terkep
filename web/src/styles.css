@@ -58,6 +58,13 @@ body {
   overscroll-behavior: none;
 }
 
+/* A lap maga sosem görget (csak a panelek): így a mobilböngésző címsora sem mozdul,
+   és a térkép nem méreteződik újra mozgatás közben (ez villanást okozna). */
+html,
+body {
+  overflow: hidden;
+}
+
 a {
   color: var(--accent-2);
 }
@@ -83,6 +90,12 @@ select {
   height: 100%;
   display: flex;
   flex-direction: column;
+}
+
+@supports (height: 100dvh) {
+  .app {
+    height: 100dvh;
+  }
 }
 
 .topbar {
@@ -141,6 +154,24 @@ select {
   position: relative;
   flex: 1;
   min-height: 0;
+  /* Álló nézet: fent a térkép, alatta a panel. A térkép a maradék helyet kapja,
+     a panel legfeljebb 60% (Sheet.tsx) -> a térképet semmi nem takarja. */
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) var(--sheet-h, 120px);
+  transition: grid-template-rows 0.22s ease;
+}
+
+.main.dragging {
+  transition: none;
+}
+
+.map-wrap {
+  position: relative;
+  grid-row: 1;
+  grid-column: 1;
+  min-height: 0;
+  min-width: 0;
 }
 
 .map {
@@ -148,41 +179,25 @@ select {
   inset: 0;
 }
 
-/* --- alsó panel (mobil) / oldalpanel (asztal) -------------------------------- */
+/* --- panel: álló nézetben a térkép alatt, oldalpanelként a térkép mellett ----- */
 .sheet {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  grid-row: 2;
+  grid-column: 1;
+  min-height: 0;
+  position: relative;
   z-index: 4;
   display: flex;
   flex-direction: column;
   background: var(--surface);
-  border-radius: 16px 16px 0 0;
-  box-shadow: var(--shadow);
-  transition: height 0.22s ease;
+  border-top: 1px solid var(--border);
+  border-radius: 14px 14px 0 0;
+  box-shadow: 0 -4px 16px rgba(16, 24, 20, 0.08);
   padding-bottom: env(safe-area-inset-bottom);
-}
-
-.sheet.dragging {
-  transition: none;
-}
-
-.sheet-peek {
-  height: 132px;
-}
-
-.sheet-half {
-  height: 50%;
-}
-
-.sheet-full {
-  height: 92%;
 }
 
 .sheet-handle {
   flex: none;
-  height: 22px;
+  height: 24px;
   display: grid;
   place-items: center;
   cursor: grab;
@@ -190,7 +205,7 @@ select {
 }
 
 .sheet-handle span {
-  width: 42px;
+  width: 44px;
   height: 5px;
   border-radius: 3px;
   background: var(--border);
@@ -198,7 +213,20 @@ select {
 
 .sheet-header {
   flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   padding: 0 12px;
+}
+
+.sheet-header-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.panel-hide,
+.panel-show {
+  display: none;
 }
 
 .sheet-body {
@@ -214,15 +242,36 @@ select {
   flex-direction: column;
 }
 
-@media (min-width: 900px) {
+/* Oldalpanel-elrendezés: asztal (>= 900 px) és fekvő telefon (alacsony képernyő). */
+@media (min-width: 900px), (orientation: landscape) and (max-height: 599px) {
+  .main {
+    --panel-w: 380px;
+    grid-template-rows: minmax(0, 1fr);
+    grid-template-columns: var(--panel-w) minmax(0, 1fr);
+    transition: none;
+  }
+
+  .main.panel-closed {
+    grid-template-columns: 0 minmax(0, 1fr);
+  }
+
+  .main.panel-closed .sheet {
+    visibility: hidden;
+  }
+
+  .map-wrap {
+    grid-row: 1;
+    grid-column: 2;
+  }
+
   .sheet {
-    top: 12px;
-    left: 12px;
-    bottom: 12px;
-    right: auto;
-    width: 390px;
-    height: auto !important;
-    border-radius: var(--radius);
+    grid-row: 1;
+    grid-column: 1;
+    border-top: 0;
+    border-right: 1px solid var(--border);
+    border-radius: 0;
+    box-shadow: none;
+    overflow: hidden;
   }
 
   .sheet-handle {
@@ -233,8 +282,43 @@ select {
     padding-top: 10px;
   }
 
-  .maplibregl-ctrl-bottom-left {
-    left: 412px;
+  .panel-hide {
+    display: inline-grid;
+    place-items: center;
+  }
+
+  .panel-show {
+    display: inline-flex;
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 3;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    border-radius: 10px;
+    padding: 8px 12px;
+    font-weight: 600;
+    box-shadow: var(--shadow);
+    cursor: pointer;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 599px) and (max-width: 899px) {
+  .main {
+    --panel-w: min(360px, 45vw);
+  }
+}
+
+@media (orientation: landscape) and (max-height: 599px) {
+  :root {
+    --topbar-h: 44px;
+  }
+
+  .banner {
+    padding: 3px 12px;
   }
 }
 
@@ -249,6 +333,7 @@ select {
 
 .tabs button {
   flex: 1;
+  min-height: 38px;
   border: 0;
   background: transparent;
   padding: 7px 8px;
@@ -265,8 +350,18 @@ select {
 }
 
 .tab-count {
+  display: block;
   font-weight: 500;
+  font-size: 0.72rem;
+  line-height: 1.1;
   color: var(--text-2);
+}
+
+.tabs button {
+  font-size: 0.9rem;
+  line-height: 1.15;
+  padding-left: 4px;
+  padding-right: 4px;
 }
 
 /* --- szűrők ---------------------------------------------------------------------- */
@@ -768,15 +863,653 @@ input[type='checkbox'] {
     font-size: 0.95rem;
   }
 
-  .toggle.compact span {
+  .layers-label {
     display: none;
-  }
-
-  .topbar select {
-    max-width: 120px;
   }
 }
 
 .maplibregl-ctrl-attrib {
   font-size: 11px;
+}
+
+/* --- rétegválasztó -------------------------------------------------------------- */
+.layers {
+  position: relative;
+}
+
+.layers-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  border-radius: 10px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 0.88rem;
+}
+
+.layers-pop {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 20;
+  min-width: 220px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 8px 12px;
+}
+
+.layers-pop fieldset {
+  border: 0;
+  margin: 0;
+  padding: 4px 0;
+  display: grid;
+  gap: 2px;
+}
+
+.layers-pop legend {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-2);
+  padding: 0;
+  margin-bottom: 2px;
+}
+
+.layers-pop .toggle {
+  min-height: 36px;
+}
+
+/* --- térkép fölötti apró elemek ---------------------------------------------- */
+.pick-hint {
+  position: absolute;
+  left: 50%;
+  top: 10px;
+  transform: translateX(-50%);
+  z-index: 3;
+  max-width: calc(100% - 90px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 6px 10px;
+  font-size: 0.85rem;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.point-menu {
+  display: grid;
+  gap: 4px;
+  padding-top: 6px;
+}
+
+.point-menu button {
+  border: 1px solid var(--border);
+  background: #fff;
+  color: #1c2420;
+  border-radius: 8px;
+  padding: 8px 10px;
+  text-align: left;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.point-menu button:hover {
+  background: #f1f3ee;
+}
+
+.tab-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-left: 5px;
+  border-radius: 50%;
+  background: #2563eb;
+  vertical-align: middle;
+}
+
+/* --- útvonaltervező ------------------------------------------------------------- */
+.route .profiles {
+  margin-bottom: 8px;
+}
+
+.route .prefs {
+  margin-bottom: 8px;
+}
+
+.chip.small-chip {
+  font-size: 0.82rem;
+  padding: 3px 9px;
+}
+
+.road-share {
+  margin: 4px 0 8px;
+  font-size: 0.9rem;
+}
+
+.route-points {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.route-point {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+
+.pt-badge {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.8rem;
+  background: #2563eb;
+}
+
+.route-point.start .pt-badge {
+  background: #15803d;
+}
+
+.route-point.end .pt-badge {
+  background: #b91c1c;
+}
+
+.pt-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pt-name.empty {
+  color: var(--text-2);
+}
+
+.route-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 8px 0;
+  font-size: 0.88rem;
+}
+
+.route-tools .link-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.route-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-2);
+}
+
+.alts {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0;
+}
+
+.alt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  text-align: left;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 10px;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+.alt.on {
+  border-color: #2563eb;
+  box-shadow: inset 3px 0 0 #2563eb;
+}
+
+.alt strong {
+  font-size: 1.05rem;
+}
+
+.alt small {
+  color: var(--text-2);
+  margin-left: auto;
+}
+
+.along h3,
+.pano h3 {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-2);
+  margin: 14px 0 6px;
+}
+
+.along ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.along li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.along-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  padding: 6px 0;
+  cursor: pointer;
+}
+
+.along-name > span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.steps {
+  margin: 10px 0;
+}
+
+.steps summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.steps ol {
+  padding-left: 20px;
+  font-size: 0.9rem;
+}
+
+.credit {
+  margin-top: 12px;
+}
+
+.warn-text {
+  color: var(--warn);
+}
+
+.btn.small {
+  padding: 4px 10px;
+  font-size: 0.82rem;
+}
+
+.spinner.small {
+  width: 16px;
+  height: 16px;
+  border-width: 2px;
+}
+
+.ext-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+  margin: 10px 0;
+  font-size: 0.9rem;
+}
+
+.ext-links .hint {
+  width: 100%;
+}
+
+/* --- 360°-os nézegető (külön, teljes képernyős mód) ------------------------ */
+.pano-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  background: #000;
+  color: #fff;
+}
+
+.pano-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  padding-top: max(8px, env(safe-area-inset-top));
+  background: rgba(0, 0, 0, 0.85);
+}
+
+.pano-title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.pano-title strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pano-credit {
+  font-size: 0.78rem;
+  opacity: 0.85;
+}
+
+.pano-credit a {
+  color: #93c5fd;
+}
+
+.pano-close {
+  color: #fff;
+  font-size: 1.3rem;
+  width: 44px;
+  height: 44px;
+}
+
+.pano-close:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.pano-box {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.pano-error {
+  position: absolute;
+  top: 40%;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.pano-strip {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 6px 10px;
+  background: rgba(0, 0, 0, 0.85);
+}
+
+.pano-strip button {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: #222;
+  color: #fff;
+  padding: 2px;
+  cursor: pointer;
+  min-width: 64px;
+}
+
+.pano-strip button.on {
+  border-color: #60a5fa;
+}
+
+.pano-strip img {
+  width: 80px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 5px;
+}
+
+.pano-hint {
+  margin: 0;
+  padding: 4px 10px calc(4px + env(safe-area-inset-bottom));
+  font-size: 0.78rem;
+  opacity: 0.75;
+  text-align: center;
+  background: rgba(0, 0, 0, 0.85);
+}
+
+/* --- érintőképernyő: nagyobb célterületek ------------------------------------ */
+@media (pointer: coarse) {
+  .maplibregl-ctrl-group button {
+    width: 44px;
+    height: 44px;
+  }
+
+  input[type='checkbox'],
+  input[type='radio'] {
+    width: 22px;
+    height: 22px;
+  }
+
+  .tabs button {
+    min-height: 44px;
+  }
+
+  .icon-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .chip {
+    min-height: 38px;
+  }
+
+  .county {
+    min-height: 40px;
+  }
+
+  .btn {
+    min-height: 44px;
+  }
+
+  .btn.small {
+    min-height: 36px;
+  }
+}
+
+.badge.tag360 {
+  flex: none;
+  font-size: 0.7rem;
+  padding: 1px 6px;
+  background: var(--blue-soft);
+  color: var(--blue);
+  border-color: transparent;
+}
+
+.pano-box iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.pano .actions {
+  margin: 6px 0;
+}
+
+/* --- turistautak ---------------------------------------------------------------- */
+.mark-icon {
+  flex: none;
+  display: block;
+}
+
+.trail-search {
+  display: block;
+  margin-top: 10px;
+}
+
+.trail-hits {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+}
+
+.trail-hits button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  text-align: left;
+  padding: 6px 2px;
+  cursor: pointer;
+}
+
+.trail-hits button:hover {
+  background: var(--surface-2);
+}
+
+/* --- saját túrák ---------------------------------------------------------------- */
+.rec-box {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px;
+  background: var(--surface-2);
+}
+
+.btn.rec {
+  background: #e11d48;
+  border-color: #e11d48;
+  color: #fff;
+}
+
+.rec-stats {
+  margin: 0 0 6px;
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rec-dot,
+.tab-dot.rec {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #e11d48;
+  animation: blink 1.2s ease-in-out infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+.tracks-title {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-2);
+  margin: 14px 0 6px;
+}
+
+.track-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.track-list li {
+  border-bottom: 1px solid var(--border);
+  padding: 4px 0;
+}
+
+.track-list li.sel {
+  background: var(--surface-2);
+}
+
+.track-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding-left: 30px;
+}
+
+.track-swatch {
+  flex: none;
+  width: 22px;
+  height: 5px;
+  border-radius: 3px;
+  background: #7c3aed;
+}
+
+.editor-title {
+  font-size: 1.1rem;
+  margin: 4px 0 8px;
+}
+
+.howto {
+  padding-left: 20px;
+  font-size: 0.9rem;
+}
+
+.anchor-marker {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  border: 4px solid #7c3aed;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+  cursor: grab;
+}
+
+@media (pointer: coarse) {
+  .anchor-marker {
+    width: 30px;
+    height: 30px;
+  }
+}
+
+.progress-bar {
+  height: 10px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.progress-bar span {
+  display: block;
+  height: 100%;
+  background: #f59e0b;
+}
+
+.progress h3 {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-2);
+  margin: 12px 0 6px;
 }

@@ -1,0 +1,590 @@
+{
+ "version": 1,
+ "generated": "2026-11-26T08:20:40Z",
+ "sample": false,
+ "boundaries": "OpenStreetMap közreműködők (ODbL)",
+ "counts": {
+  "total": 22134,
+  "by_tier": {
+   "1": 529,
+   "2": 2656,
+   "3": 18949
+  },
+  "by_cat": {
+   "barlang": 1774,
+   "csucs": 4175,
+   "egyeb": 342,
+   "forras": 2697,
+   "hid": 125,
+   "kastely": 980,
+   "kert": 71,
+   "kilato": 627,
+   "kilatopont": 386,
+   "rom": 896,
+   "szikla": 793,
+   "templom": 7776,
+   "to": 200,
+   "var": 212,
+   "vizeses": 39,
+   "volgy": 1041
+  },
+  "by_county": {
+   "BA": {
+    "barlang": 124,
+    "csucs": 128,
+    "egyeb": 7,
+    "forras": 427,
+    "hid": 3,
+    "kastely": 33,
+    "kert": 7,
+    "kilato": 30,
+    "kilatopont": 20,
+    "rom": 50,
+    "szikla": 37,
+    "templom": 534,
+    "to": 14,
+    "var": 17,
+    "vizeses": 9,
+    "volgy": 104
+   },
+   "BE": {
+    "csucs": 25,
+    "egyeb": 2,
+    "forras": 2,
+    "hid": 10,
+    "kastely": 26,
+    "kert": 2,
+    "kilato": 11,
+    "rom": 6,
+    "templom": 185,
+    "to": 3,
+    "var": 3,
+    "volgy": 17
+   },
+   "BK": {
+    "csucs": 94,
+    "egyeb": 55,
+    "forras": 7,
+    "hid": 4,
+    "kastely": 30,
+    "kert": 3,
+    "kilato": 43,
+    "kilatopont": 4,
+    "rom": 33,
+    "szikla": 1,
+    "templom": 343,
+    "to": 22,
+    "var": 4,
+    "vizeses": 1
+   },
+   "BU": {
+    "barlang": 132,
+    "csucs": 74,
+    "egyeb": 111,
+    "forras": 19,
+    "hid": 23,
+    "kastely": 44,
+    "kert": 6,
+    "kilato": 20,
+    "kilatopont": 36,
+    "rom": 76,
+    "szikla": 65,
+    "templom": 446,
+    "to": 5,
+    "var": 3,
+    "vizeses": 1,
+    "volgy": 8
+   },
+   "BZ": {
+    "barlang": 601,
+    "csucs": 740,
+    "egyeb": 12,
+    "forras": 896,
+    "hid": 3,
+    "kastely": 80,
+    "kert": 1,
+    "kilato": 47,
+    "kilatopont": 45,
+    "rom": 57,
+    "szikla": 160,
+    "templom": 815,
+    "to": 11,
+    "var": 37,
+    "vizeses": 9,
+    "volgy": 147
+   },
+   "CS": {
+    "csucs": 23,
+    "egyeb": 16,
+    "forras": 5,
+    "hid": 9,
+    "kastely": 12,
+    "kert": 2,
+    "kilato": 17,
+    "rom": 15,
+    "szikla": 3,
+    "templom": 207,
+    "to": 20,
+    "var": 3
+   },
+   "FE": {
+    "barlang": 84,
+    "csucs": 177,
+    "egyeb": 7,
+    "forras": 43,
+    "hid": 1,
+    "kastely": 62,
+    "kert": 5,
+    "kilato": 32,
+    "kilatopont": 22,
+    "rom": 61,
+    "szikla": 38,
+    "templom": 315,
+    "to": 9,
+    "var": 7,
+    "volgy": 140
+   },
+   "GS": {
+    "barlang": 17,
+    "csucs": 89,
+    "egyeb": 7,
+    "forras": 53,
+    "hid": 9,
+    "kastely": 39,
+    "kert": 3,
+    "kilato": 43,
+    "kilatopont": 8,
+    "rom": 26,
+    "szikla": 10,
+    "templom": 429,
+    "to": 3,
+    "var": 4
+   },
+   "HB": {
+    "csucs": 144,
+    "egyeb": 2,
+    "forras": 7,
+    "hid": 3,
+    "kastely": 30,
+    "kert": 6,
+    "kilato": 41,
+    "kilatopont": 8,
+    "rom": 18,
+    "templom": 239,
+    "to": 23,
+    "var": 4,
+    "vizeses": 1
+   },
+   "HE": {
+    "barlang": 84,
+    "csucs": 395,
+    "egyeb": 9,
+    "forras": 260,
+    "hid": 5,
+    "kastely": 36,
+    "kert": 2,
+    "kilato": 34,
+    "kilatopont": 23,
+    "rom": 33,
+    "szikla": 94,
+    "templom": 226,
+    "to": 5,
+    "var": 20,
+    "vizeses": 2,
+    "volgy": 69
+   },
+   "JN": {
+    "csucs": 24,
+    "egyeb": 8,
+    "forras": 4,
+    "hid": 7,
+    "kastely": 20,
+    "kert": 3,
+    "kilato": 7,
+    "rom": 3,
+    "szikla": 1,
+    "templom": 191,
+    "to": 6,
+    "var": 1
+   },
+   "KE": {
+    "barlang": 199,
+    "csucs": 380,
+    "egyeb": 13,
+    "forras": 133,
+    "hid": 12,
+    "kastely": 27,
+    "kert": 4,
+    "kilato": 22,
+    "kilatopont": 28,
+    "rom": 97,
+    "szikla": 75,
+    "templom": 230,
+    "to": 6,
+    "var": 21,
+    "volgy": 143
+   },
+   "NO": {
+    "barlang": 31,
+    "csucs": 526,
+    "egyeb": 4,
+    "forras": 176,
+    "hid": 2,
+    "kastely": 65,
+    "kert": 1,
+    "kilato": 25,
+    "kilatopont": 12,
+    "rom": 40,
+    "szikla": 58,
+    "templom": 273,
+    "to": 9,
+    "var": 17,
+    "vizeses": 4,
+    "volgy": 70
+   },
+   "PE": {
+    "barlang": 242,
+    "csucs": 633,
+    "egyeb": 42,
+    "forras": 220,
+    "hid": 12,
+    "kastely": 107,
+    "kert": 6,
+    "kilato": 59,
+    "kilatopont": 104,
+    "rom": 166,
+    "szikla": 135,
+    "templom": 659,
+    "to": 23,
+    "var": 23,
+    "vizeses": 5,
+    "volgy": 214
+   },
+   "SO": {
+    "csucs": 93,
+    "egyeb": 14,
+    "forras": 46,
+    "hid": 2,
+    "kastely": 90,
+    "kert": 2,
+    "kilato": 39,
+    "kilatopont": 12,
+    "rom": 30,
+    "szikla": 8,
+    "templom": 495,
+    "to": 10,
+    "var": 10,
+    "vizeses": 2,
+    "volgy": 18
+   },
+   "SZ": {
+    "csucs": 56,
+    "egyeb": 2,
+    "forras": 6,
+    "hid": 8,
+    "kastely": 47,
+    "kert": 2,
+    "kilato": 23,
+    "kilatopont": 5,
+    "rom": 4,
+    "templom": 581,
+    "to": 11,
+    "var": 2
+   },
+   "TO": {
+    "barlang": 1,
+    "csucs": 30,
+    "egyeb": 3,
+    "forras": 44,
+    "hid": 3,
+    "kastely": 35,
+    "kilato": 24,
+    "kilatopont": 12,
+    "rom": 19,
+    "szikla": 1,
+    "templom": 271,
+    "to": 2,
+    "var": 8,
+    "vizeses": 2,
+    "volgy": 5
+   },
+   "VA": {
+    "barlang": 12,
+    "csucs": 78,
+    "egyeb": 10,
+    "forras": 51,
+    "hid": 4,
+    "kastely": 106,
+    "kert": 4,
+    "kilato": 28,
+    "kilatopont": 3,
+    "rom": 52,
+    "szikla": 8,
+    "templom": 388,
+    "to": 3,
+    "var": 5,
+    "volgy": 13
+   },
+   "VE": {
+    "barlang": 218,
+    "csucs": 359,
+    "egyeb": 15,
+    "forras": 263,
+    "hid": 1,
+    "kastely": 53,
+    "kert": 7,
+    "kilato": 45,
+    "kilatopont": 35,
+    "rom": 85,
+    "szikla": 92,
+    "templom": 519,
+    "to": 5,
+    "var": 20,
+    "vizeses": 3,
+    "volgy": 89
+   },
+   "ZA": {
+    "barlang": 29,
+    "csucs": 107,
+    "egyeb": 3,
+    "forras": 35,
+    "hid": 4,
+    "kastely": 38,
+    "kert": 5,
+    "kilato": 37,
+    "kilatopont": 9,
+    "rom": 25,
+    "szikla": 7,
+    "templom": 430,
+    "to": 10,
+    "var": 3,
+    "volgy": 4
+   }
+  }
+ },
+ "groups": {
+  "epitett": {
+   "label": "Épített örökség",
+   "order": 1
+  },
+  "termeszeti": {
+   "label": "Természeti érték",
+   "order": 2
+  },
+  "kilatas": {
+   "label": "Kilátás",
+   "order": 3
+  }
+ },
+ "categories": {
+  "var": {
+   "label": "Vár, várrom",
+   "group": "epitett",
+   "icon": "castle",
+   "color": "#9a3412"
+  },
+  "kastely": {
+   "label": "Kastély, kúria",
+   "group": "epitett",
+   "icon": "town-hall",
+   "color": "#b45309"
+  },
+  "templom": {
+   "label": "Egyházi épület",
+   "group": "epitett",
+   "icon": "place-of-worship",
+   "color": "#7c3aed"
+  },
+  "hid": {
+   "label": "Híd, viadukt",
+   "group": "epitett",
+   "icon": "bridge",
+   "color": "#475569"
+  },
+  "rom": {
+   "label": "Rom, régészeti hely",
+   "group": "epitett",
+   "icon": "historic",
+   "color": "#78716c"
+  },
+  "egyeb": {
+   "label": "Egyéb látnivaló",
+   "group": "epitett",
+   "icon": "star",
+   "color": "#be185d"
+  },
+  "csucs": {
+   "label": "Hegycsúcs",
+   "group": "termeszeti",
+   "icon": "mountain",
+   "color": "#166534"
+  },
+  "barlang": {
+   "label": "Barlang",
+   "group": "termeszeti",
+   "icon": "cave",
+   "color": "#3f3f46"
+  },
+  "szikla": {
+   "label": "Szikla, földtani érték",
+   "group": "termeszeti",
+   "icon": "volcano",
+   "color": "#57534e"
+  },
+  "vizeses": {
+   "label": "Vízesés",
+   "group": "termeszeti",
+   "icon": "waterfall",
+   "color": "#0369a1"
+  },
+  "forras": {
+   "label": "Forrás",
+   "group": "termeszeti",
+   "icon": "spring",
+   "color": "#0891b2"
+  },
+  "to": {
+   "label": "Tó",
+   "group": "termeszeti",
+   "icon": "water",
+   "color": "#1d4ed8"
+  },
+  "volgy": {
+   "label": "Völgy, szurdok",
+   "group": "termeszeti",
+   "icon": "valley",
+   "color": "#4d7c0f"
+  },
+  "kert": {
+   "label": "Arborétum, kert",
+   "group": "termeszeti",
+   "icon": "garden",
+   "color": "#15803d"
+  },
+  "kilato": {
+   "label": "Kilátó",
+   "group": "kilatas",
+   "icon": "observation-tower",
+   "color": "#c2410c"
+  },
+  "kilatopont": {
+   "label": "Kilátópont",
+   "group": "kilatas",
+   "icon": "viewpoint",
+   "color": "#ea580c"
+  }
+ },
+ "counties": {
+  "BU": {
+   "name": "Budapest",
+   "short": "Budapest"
+  },
+  "BA": {
+   "name": "Baranya vármegye",
+   "short": "Baranya"
+  },
+  "BE": {
+   "name": "Békés vármegye",
+   "short": "Békés"
+  },
+  "BK": {
+   "name": "Bács-Kiskun vármegye",
+   "short": "Bács-Kiskun"
+  },
+  "BZ": {
+   "name": "Borsod-Abaúj-Zemplén vármegye",
+   "short": "Borsod-Abaúj-Zemplén"
+  },
+  "CS": {
+   "name": "Csongrád-Csanád vármegye",
+   "short": "Csongrád-Csanád"
+  },
+  "FE": {
+   "name": "Fejér vármegye",
+   "short": "Fejér"
+  },
+  "GS": {
+   "name": "Győr-Moson-Sopron vármegye",
+   "short": "Győr-Moson-Sopron"
+  },
+  "HB": {
+   "name": "Hajdú-Bihar vármegye",
+   "short": "Hajdú-Bihar"
+  },
+  "HE": {
+   "name": "Heves vármegye",
+   "short": "Heves"
+  },
+  "JN": {
+   "name": "Jász-Nagykun-Szolnok vármegye",
+   "short": "Jász-Nagykun-Szolnok"
+  },
+  "KE": {
+   "name": "Komárom-Esztergom vármegye",
+   "short": "Komárom-Esztergom"
+  },
+  "NO": {
+   "name": "Nógrád vármegye",
+   "short": "Nógrád"
+  },
+  "PE": {
+   "name": "Pest vármegye",
+   "short": "Pest"
+  },
+  "SO": {
+   "name": "Somogy vármegye",
+   "short": "Somogy"
+  },
+  "SZ": {
+   "name": "Szabolcs-Szatmár-Bereg vármegye",
+   "short": "Szabolcs-Szatmár-Bereg"
+  },
+  "TO": {
+   "name": "Tolna vármegye",
+   "short": "Tolna"
+  },
+  "VA": {
+   "name": "Vas vármegye",
+   "short": "Vas"
+  },
+  "VE": {
+   "name": "Veszprém vármegye",
+   "short": "Veszprém"
+  },
+  "ZA": {
+   "name": "Zala vármegye",
+   "short": "Zala"
+  }
+ },
+ "flags": {
+  "heritage": 1,
+  "image": 2,
+  "kektura": 4,
+  "showcave": 8,
+  "ruin": 16,
+  "approx": 32,
+  "sample": 64,
+  "streetview": 128,
+  "pano": 256
+ },
+ "sources": {
+  "osm": {
+   "label": "OpenStreetMap",
+   "url": "https://www.openstreetmap.org/{ref}",
+   "license": "ODbL 1.0",
+   "kind": "open"
+  },
+  "wikidata": {
+   "label": "Wikidata",
+   "url": "https://www.wikidata.org/wiki/{ref}",
+   "license": "CC0 1.0",
+   "kind": "open"
+  },
+  "huwiki": {
+   "label": "Magyar Wikipédia",
+   "url": "https://hu.wikipedia.org/wiki/{ref}",
+   "license": "CC BY-SA 4.0 (csak címet és hivatkozást tárolunk)",
+   "kind": "editorial"
+  }
+ }
+}

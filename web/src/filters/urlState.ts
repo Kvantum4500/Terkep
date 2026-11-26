@@ -32,6 +32,7 @@ export function parseHash(hash: string, validCounties: string[], validCats: stri
       showcave: flags.includes('barlang'),
       kektura: flags.includes('kektura'),
       heritage: flags.includes('muemlek'),
+      pano: flags.includes('360'),
     },
     selected: params.get('p'),
   }
@@ -45,7 +46,9 @@ export function toHash(state: UrlState): string {
   const tiers = [...f.tiers].sort()
   if (tiers.join(',') !== DEFAULT_FILTERS.tiers.join(',')) p.set('s', tiers.join(','))
   if (f.q.trim()) p.set('q', f.q.trim())
-  const flags = [f.showcave && 'barlang', f.kektura && 'kektura', f.heritage && 'muemlek'].filter(Boolean)
+  const flags = [f.showcave && 'barlang', f.kektura && 'kektura', f.heritage && 'muemlek', f.pano && '360'].filter(
+    Boolean,
+  )
   if (flags.length) p.set('j', flags.join(','))
   if (state.selected) p.set('p', state.selected)
   const s = p.toString().replace(/%2C/g, ',')

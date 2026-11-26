@@ -20,8 +20,8 @@ jobs:
       run:
         working-directory: pipeline
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
           cache: pip
@@ -45,8 +45,8 @@ jobs:
       run:
         working-directory: web
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -54,25 +54,38 @@ jobs:
       - run: npm ci
       - name: Egységtesztek
         run: npm test
-      - name: Build (GitHub Pages alútvonallal)
+      # Az e2e tesztek a determinisztikus kézi mintaadaton futnak…
+      - name: Build mintaadattal (e2e-hez)
         run: npm run build
         env:
           BASE_PATH: /Terkep/
+          TERKEP_DATA: ../data/sample
+          # az e2e a beágyazott Google-utcaképet is teszteli (a Google-kérés mockolva)
+          VITE_GOOGLE_MAPS_EMBED_KEY: e2e-test-key
       - name: Playwright böngésző
         run: npx playwright install --with-deps chromium
       - name: Végponttól végpontig tesztek
         run: npm run e2e
         env:
           BASE_PATH: /Terkep/
+      # …a kitelepített app viszont a valós adatból készül (data/, ha van).
+      - name: Build valós adattal (GitHub Pages alútvonallal)
+        run: npm run build
+        env:
+          BASE_PATH: /Terkep/
+          # nem kötelező: Settings -> Secrets and variables -> Actions -> Variables
+          VITE_MAPILLARY_TOKEN: ${{ vars.MAPILLARY_TOKEN }}
+          # böngészőkulcs (Maps Embed API, a Pages-címre korlátozva): beágyazott Google-utcakép
+          VITE_GOOGLE_MAPS_EMBED_KEY: ${{ vars.GOOGLE_MAPS_EMBED_KEY }}
       - name: E2E riport
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report
           path: web/playwright-report
           retention-days: 7
       - name: Pages-csomag
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: web/dist
 
@@ -94,4 +107,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

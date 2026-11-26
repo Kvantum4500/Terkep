@@ -4,12 +4,15 @@ Példák:
   terkep build --sample            # mintaadat -> data/sample/ (hálózat nélkül)
   terkep boundaries                # tartalék vármegyehatárok (geoBoundaries + NE)
   terkep fetch osm                 # Geofabrik PBF -> rekordok + OSM-határok
+  terkep fetch trails              # jelzett turistautak (route=hiking) -> data/trails/
   terkep fetch wikidata            # osztályfák, felderítés, dúsítás
   terkep fetch huwiki | commons
   terkep discover all              # túraoldalak felderítése (riport)
   terkep fetch site all            # engedélyezett túraoldalak
   terkep build                     # valós adat -> data/
+  terkep fetch streetview          # Google-utcakép helye (GOOGLE_MAPS_SERVER_KEY)
   terkep golden                    # aranylista-ellenőrzés
+  terkep pano-audit                # 360°-os képek lefedettsége (riport)
   terkep verify-config             # Wikidata QID-k ellenőrzése
 """
 
@@ -38,7 +41,9 @@ def _client(args) -> PoliteClient:
         if url:
             from urllib.parse import urlsplit
 
-            c.set_interval(urlsplit(url).netloc, float(cfg.get("min_interval_s", 1.0)))
+            host = urlsplit(url).netloc
+            c.set_interval(host, float(cfg.get("min_interval_s", 1.0)))
+            c.mark_api_host(host)
     return c
 
 
@@ -66,6 +71,25 @@ def cmd_boundaries(args) -> int:
     return 0
 
 
+def fetch_pbf(client: PoliteClient, urls: list[str], dest: Path) -> Path:
+    """A Magyarország-kivonat letöltése: a tükrök sorrendben; ha egyik sem érhető
+    el, a korábban letöltött (pl. a CI-gyorsítótárból visszaállított) fájllal megy
+    tovább, figyelmeztetéssel. Ha az sincs, hibát dob."""
+    errors = []
+    for url in urls:
+        log.info("PBF letöltése: %s", url)
+        try:
+            return client.download(url, dest, attempts=3)
+        except Exception as exc:  # noqa: BLE001 - a következő tükörrel próbálkozunk
+            errors.append(f"{url}: {exc}")
+            log.warning("PBF-tükör nem elérhető: %s", url)
+    if dest.exists():
+        age_days = (time.time() - dest.stat().st_mtime) / 86400
+        log.warning("Egyik tükör sem elérhető; a meglévő, %.1f napos PBF-fel folytatom.", age_days)
+        return dest
+    raise RuntimeError("A PBF nem tölthető le, és nincs korábbi példány: " + " | ".join(errors))
+
+
 def cmd_fetch(args) -> int:
     client = _client(args)
     what = args.what
@@ -74,8 +98,7 @@ def cmd_fetch(args) -> int:
 
         pbf = Path(args.pbf) if args.pbf else CACHE_DIR / "osm" / "hungary-latest.osm.pbf"
         if not args.pbf and (not pbf.exists() or time.time() - pbf.stat().st_mtime > 7 * 86400):
-            log.info("PBF letöltése…")
-            client.download(config.source_cfg("osm")["pbf_url"], pbf)
+            fetch_pbf(client, config.source_cfg("osm")["pbf_urls"], pbf)
         recs, counties, settlements = osm_pbf.extract(pbf)
         records.save("osm", recs)
         osm_pbf.write_boundaries(counties, settlements)
@@ -95,6 +118,25 @@ def cmd_fetch(args) -> int:
         old = commons.load_meta()
         meta = {**old, **commons.fetch_meta(client, files - set(old))}
         commons.save_meta(meta)
+    elif what == "trails":
+        from .sources import trails
+
+        pbf = Path(args.pbf) if args.pbf else CACHE_DIR / "osm" / "hungary-latest.osm.pbf"
+        if not pbf.exists():
+            log.error("Nincs PBF (%s) – előbb: terkep fetch osm", pbf)
+            return 1
+        trails.extract(pbf)
+    elif what == "streetview":
+        import os
+
+        from .sources import streetview
+
+        key = os.environ.get(streetview.KEY_ENV, "").strip()
+        if not key:
+            log.warning("Nincs %s – az utcakép-lépés kimarad.", streetview.KEY_ENV)
+            return 0
+        rows = load_ndjson(DATA_DIR / "pois.ndjson")
+        streetview.save(streetview.fetch(rows, key=key, max_tier=args.max_tier))
     elif what == "site":
         from .sources.sites import SITE_KEYS, adapter_for
 
@@ -168,21 +210,38 @@ def cmd_build(args) -> int:
 
 
 def check_golden(data_dir: Path) -> list[str]:
+    """Aranylista: minden tételhez legyen legalább egy pont a megadott vármegyében,
+    a megadott kategóriák egyikében, amelynek (név + település) szövegében minden
+    `match` szórész szerepel, és a szintje legfeljebb `max_tier` (alapból 1)."""
     rows = load_ndjson(data_dir / "pois.ndjson")
     failures = []
     for g in config.golden():
+        cats = g["cat"] if isinstance(g["cat"], list) else [g["cat"]]
         hits = [
             r
             for r in rows
             if r["county"] == g["county"]
-            and r["cat"] == g["cat"]
-            and all(m in fold(r["name"]) for m in g["match"])
+            and r["cat"] in cats
+            and all(m in fold(f"{r['name']} {r.get('settlement', '')}") for m in g["match"])
         ]
         if not hits:
-            failures.append(f"hiányzik: {g}")
-        elif not any(r["tier"] == 1 for r in hits):
-            failures.append(f"nem kiemelt: {g} -> {[(r['name'], r['tier']) for r in hits]}")
+            failures.append(f"hiányzik: {g}" + _explain_missing(g))
+        elif not any(r["tier"] <= g.get("max_tier", 1) for r in hits):
+            failures.append(f"nem kiemelt: {g} -> {[(r['name'], r['cat'], r['tier']) for r in hits][:5]}")
     return failures
+
+
+def _explain_missing(g: dict) -> str:
+    """Diagnosztika a riportba: a hiányzó aranylista-tétel nevére illeszkedő nyers
+    forrásrekordok (ha a pipeline/build/records elérhető, pl. az adatfrissítésben)."""
+    found = []
+    for src in records.available():
+        for r in records.load(src):
+            if all(m in fold(f"{r.name} {r.settlement or ''}") for m in g["match"]):
+                found.append(f"{r.key} kat={r.cat} qid={r.wikidata or '-'} ({r.lat}, {r.lon})")
+    if not found:
+        return " | egyik forrásban sincs ilyen nevű rekord (besorolás vagy szűrés hiányzik?)"
+    return " | nyers rekordok: " + "; ".join(found[:8])
 
 
 def cmd_golden(args) -> int:
@@ -191,6 +250,17 @@ def cmd_golden(args) -> int:
         print("HIBA:", f)
     print(f"Aranylista: {len(config.golden()) - len(failures)}/{len(config.golden())} rendben")
     return 1 if failures else 0
+
+
+def cmd_pano_audit(args) -> int:
+    from .pano_audit import audit
+
+    report = audit(_client(args), load_ndjson(Path(args.data) / "pois.ndjson"), max_tier=args.max_tier)
+    out = BUILD_DIR / "reports" / "pano_audit.md"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(report, encoding="utf-8")
+    print(report)
+    return 0
 
 
 def cmd_verify_config(args) -> int:
@@ -217,11 +287,12 @@ def main(argv: list[str] | None = None) -> int:
     b.set_defaults(func=cmd_boundaries)
 
     f = sub.add_parser("fetch", help="forrás letöltése")
-    f.add_argument("what", choices=["osm", "wikidata", "huwiki", "commons", "site"])
+    f.add_argument("what", choices=["osm", "trails", "wikidata", "huwiki", "commons", "streetview", "site"])
     f.add_argument("site", nargs="?", default="all")
     f.add_argument("--pbf", help="helyi PBF-fájl (letöltés helyett)")
     f.add_argument("--refresh", action="store_true", help="Wikidata osztályfák újratöltése")
     f.add_argument("--max-pages", type=int, default=None)
+    f.add_argument("--max-tier", type=int, default=2, help="utcakép: legfeljebb ilyen szintű helyekhez")
     f.set_defaults(func=cmd_fetch)
 
     d = sub.add_parser("discover", help="túraoldalak felderítése")
@@ -236,6 +307,11 @@ def main(argv: list[str] | None = None) -> int:
     g = sub.add_parser("golden", help="aranylista-ellenőrzés")
     g.add_argument("--data", default=str(DATA_DIR))
     g.set_defaults(func=cmd_golden)
+
+    pa = sub.add_parser("pano-audit", help="360°-os képek: hány kiemelt helynél van (riport)")
+    pa.add_argument("--data", default=str(DATA_DIR))
+    pa.add_argument("--max-tier", type=int, default=1)
+    pa.set_defaults(func=cmd_pano_audit)
 
     v = sub.add_parser("verify-config", help="Wikidata QID-k ellenőrzése")
     v.set_defaults(func=cmd_verify_config)

@@ -9,6 +9,10 @@ export const FLAG = {
   ruin: 16,
   approx: 32,
   sample: 64,
+  /** Google-utcakép a közelben (a pipeline előre megnézte) */
+  streetview: 128,
+  /** nyílt gömbpanoráma (Wikidata P4640) */
+  pano: 256,
 } as const
 
 export type Tier = 1 | 2 | 3
@@ -86,6 +90,10 @@ export interface PoiDetail {
   ele?: number
   img?: { file: string; artist?: string; license?: string; license_url?: string }
   alt?: string[]
+  /** Google-utcakép: a felvétel helye és az irány a látnivaló felé */
+  sv?: { lat: number; lon: number; h: number }
+  /** nyílt gömbpanoráma (Commons-fájlnév) */
+  pano?: string
   wikidata?: string
   osm?: string
   huwiki?: string

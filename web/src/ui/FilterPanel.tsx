@@ -4,6 +4,7 @@ import { isDefault, toggle } from '../filters/filter'
 import { compareHu, formatCount } from '../filters/text'
 import { useStore } from '../state/store'
 import { CategoryIcon } from './CategoryIcon'
+import { TrailFilter } from './TrailFilter'
 
 const TIERS: { t: Tier; label: string; hint: string }[] = [
   { t: 1, label: 'Kiemelt', hint: 'országos jelentőségű' },
@@ -142,8 +143,11 @@ export function FilterPanel() {
           <Toggle label="látogatható barlangok" on={filters.showcave} onChange={(v) => setFilters({ showcave: v })} />
           <Toggle label="Kéktúra-pecsételőhelyek" on={filters.kektura} onChange={(v) => setFilters({ kektura: v })} />
           <Toggle label="műemlékek, védett helyek" on={filters.heritage} onChange={(v) => setFilters({ heritage: v })} />
+          <Toggle label="360°-os képpel (utcakép, gömbpanoráma)" on={filters.pano} onChange={(v) => setFilters({ pano: v })} />
         </div>
       </section>
+
+      <TrailFilter />
 
     </div>
   )

@@ -2,9 +2,12 @@ import { useEffect, useState } from 'react'
 import { settlementOf } from '../data/decode'
 import { loadCountyDetails } from '../data/load'
 import { FLAG, type PoiDetail } from '../data/types'
+import { googleStreetViewUrl } from '../pano/find'
+import { poiWaypoint, routeTo } from '../state/actions'
 import { useStore } from '../state/store'
 import { CategoryIcon } from './CategoryIcon'
 import { commonsPage, commonsThumb, geoUri, googleMapsUrl, osmMapUrl, sourceUrl } from './links'
+import { PanoSection } from './PanoSection'
 
 const TIER_LABEL = { 1: 'Kiemelt', 2: 'Érdekes', 3: 'Helyi' } as const
 
@@ -71,6 +74,11 @@ export function PoiCard({ id, onClose }: { id: string; onClose: () => void }) {
         {flags & FLAG.heritage ? <span className="badge">Műemlék / védett</span> : null}
         {flags & FLAG.showcave ? <span className="badge warn">Látogatható barlang – általában csak vezetéssel</span> : null}
         {flags & FLAG.kektura ? <span className="badge blue">Kéktúra-pecsételőhely</span> : null}
+        {flags & (FLAG.streetview | FLAG.pano) ? (
+          <span className="badge blue" data-testid="badge-360">
+            360° kép
+          </span>
+        ) : null}
         {flags & FLAG.ruin ? <span className="badge">Rom</span> : null}
         {flags & FLAG.sample ? <span className="badge muted">Mintaadat – közelítő hely</span> : null}
         {flags & FLAG.approx && !(flags & FLAG.sample) ? <span className="badge muted">Közelítő hely</span> : null}
@@ -118,14 +126,43 @@ export function PoiCard({ id, onClose }: { id: string; onClose: () => void }) {
       </dl>
 
       <div className="actions">
-        <a className="btn" href={geoUri(lat, lon, name)}>
-          Navigáció
+        <button
+          type="button"
+          className="btn"
+          onClick={() => {
+            const w = poiWaypoint(id)
+            if (w) routeTo(w, 'end')
+          }}
+          data-testid="route-to"
+        >
+          Útvonal ide
+        </button>
+        <button
+          type="button"
+          className="btn secondary"
+          onClick={() => {
+            const w = poiWaypoint(id)
+            if (w) routeTo(w, 'via')
+          }}
+          data-testid="route-via"
+        >
+          Útba ejtem
+        </button>
+      </div>
+
+      <PanoSection key={id} lat={lat} lon={lon} auto={tier === 1} detail={detail} />
+
+      <div className="ext-links">
+        <span className="hint">Megnyitás másik appban:</span>
+        <a href={geoUri(lat, lon, name)}>Navigáció</a>
+        <a href={googleStreetViewUrl(lat, lon)} target="_blank" rel="noreferrer" data-testid="gsv-link">
+          Google utcakép
         </a>
-        <a className="btn secondary" href={osmMapUrl(lat, lon)} target="_blank" rel="noreferrer">
-          OpenStreetMap
-        </a>
-        <a className="btn secondary" href={googleMapsUrl(lat, lon)} target="_blank" rel="noreferrer">
+        <a href={googleMapsUrl(lat, lon)} target="_blank" rel="noreferrer">
           Google Térkép
+        </a>
+        <a href={osmMapUrl(lat, lon)} target="_blank" rel="noreferrer">
+          OpenStreetMap
         </a>
       </div>
 

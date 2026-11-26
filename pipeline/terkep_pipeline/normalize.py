@@ -61,6 +61,7 @@ def core_tokens(name: str, settlement: str | None = None) -> list[str]:
     return [t for t in tokens(name) if t not in gen and t not in adj]
 
 
+@cache
 def is_generic(name: str) -> bool:
     """Igaz, ha a névben nincs megkülönböztető szó (pl. „Római katolikus templom”)."""
     return not core_tokens(name)

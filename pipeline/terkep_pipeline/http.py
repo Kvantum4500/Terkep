@@ -61,9 +61,19 @@ class PoliteClient:
         self._last: dict[str, float] = {}
         self._intervals: dict[str, float] = {}
         self._robots: dict[str, urllib.robotparser.RobotFileParser | None] = {}
+        self._api_hosts: set[str] = set()
 
     def set_interval(self, host: str, seconds: float) -> None:
         self._intervals[host] = seconds
+
+    def mark_api_host(self, host: str) -> None:
+        """Hivatalos, gépi használatra szánt API (pl. Wikidata SPARQL, MediaWiki API).
+
+        A robots.txt weboldalak bejárására vonatkozik; ezeknél az API-knál az
+        üzemeltető User-Agent-szabálya az irányadó (azt betartjuk), a robots.txt-t
+        nem nézzük. A túraoldalak bejárásánál a robots.txt továbbra is kötelező.
+        """
+        self._api_hosts.add(host)
 
     # -- gyorsítótár --------------------------------------------------------
     def _cache_path(self, method: str, url: str, body: str | None) -> Path:
@@ -134,7 +144,10 @@ class PoliteClient:
         headers: dict | None = None,
         check_robots: bool = True,
         timeout: float = 120.0,
+        attempts: int = 5,
     ) -> Response:
+        """Udvarias kérés gyorsítótárral. Hálózati hibánál és 429/5xx válasznál
+        legfeljebb `attempts`-szer próbálkozik (az utolsó után nem vár)."""
         full_url = requests.Request(method, url, params=params).prepare().url or url
         body = json.dumps(data, sort_keys=True) if isinstance(data, dict) else data
         path = self._cache_path(method, full_url, body)
@@ -143,11 +156,17 @@ class PoliteClient:
             return cached
         if self.offline:
             raise OfflineMiss(full_url)
-        if check_robots and self.respect_robots and not self.allowed(full_url):
-            raise RobotsDisallowed(full_url)
         host = urlsplit(full_url).netloc
+        if (
+            check_robots
+            and self.respect_robots
+            and host not in self._api_hosts
+            and not self.allowed(full_url)
+        ):
+            raise RobotsDisallowed(full_url)
         last_exc: Exception | None = None
-        for attempt in range(5):
+        for attempt in range(attempts):
+            last = attempt == attempts - 1
             self._throttle(host)
             try:
                 r = self.session.request(
@@ -155,14 +174,18 @@ class PoliteClient:
                 )
             except requests.RequestException as exc:
                 last_exc = exc
-                time.sleep(min(60, 2**attempt * 2))
+                if not last:
+                    time.sleep(min(60, 2**attempt * 2))
                 continue
             if r.status_code in (429, 500, 502, 503, 504):
+                last_exc = RuntimeError(f"HTTP {r.status_code}")
+                if last:
+                    log.warning("%s -> %s (%d. próbálkozás, feladom)", full_url, r.status_code, attempts)
+                    continue
                 retry_after = r.headers.get("Retry-After", "")
                 delay = float(retry_after) if retry_after.isdigit() else min(120, 2**attempt * 5)
                 log.warning("%s -> %s, várok %.0f s-ot", full_url, r.status_code, delay)
                 time.sleep(delay)
-                last_exc = RuntimeError(f"HTTP {r.status_code}")
                 continue
             resp = Response(full_url, r.status_code, r.text, {k.lower(): v for k, v in r.headers.items()})
             if r.status_code < 400 or r.status_code == 404:
@@ -170,24 +193,57 @@ class PoliteClient:
             return resp
         raise RuntimeError(f"Sikertelen letöltés: {full_url}: {last_exc}")
 
+    def forget(
+        self, method: str, url: str, data: dict | str | None = None, params: dict | None = None
+    ) -> None:
+        """Egy gyorsítótárazott válasz törlése (pl. ha 200-as státusszal, de hibás tartalommal jött)."""
+        full_url = requests.Request(method, url, params=params).prepare().url or url
+        body = json.dumps(data, sort_keys=True) if isinstance(data, dict) else data
+        self._cache_path(method, full_url, body).unlink(missing_ok=True)
+
     def get(self, url: str, params: dict | None = None, headers: dict | None = None, **kw) -> Response:
         return self._fetch("GET", url, params=params, headers=headers, **kw)
 
     def post(self, url: str, data: dict | str, headers: dict | None = None, **kw) -> Response:
         return self._fetch("POST", url, data=data, headers=headers, **kw)
 
-    def download(self, url: str, dest: Path, chunk: int = 1 << 20) -> Path:
-        """Nagy fájl letöltése (pl. OSM PBF) folytatható módon, gyorsítótár nélkül."""
+    def download(
+        self, url: str, dest: Path, chunk: int = 1 << 20, attempts: int = 5, backoff_s: float = 15.0
+    ) -> Path:
+        """Nagy fájl letöltése (pl. OSM PBF), gyorsítótár nélkül.
+
+        Átmeneti hálózati hibánál (kapcsolódási hiba, megszakadt átvitel, 5xx)
+        újrapróbál, egyre hosszabb várakozással."""
         if self.offline:
             if dest.exists():
                 return dest
             raise OfflineMiss(url)
         dest.parent.mkdir(parents=True, exist_ok=True)
         tmp = dest.with_suffix(dest.suffix + ".part")
-        with self.session.get(url, stream=True, timeout=600) as r:
-            r.raise_for_status()
-            with tmp.open("wb") as f:
-                for block in r.iter_content(chunk):
-                    f.write(block)
-        tmp.replace(dest)
-        return dest
+        last_exc: Exception | None = None
+        for attempt in range(attempts):
+            try:
+                with self.session.get(url, stream=True, timeout=600) as r:
+                    if r.status_code >= 500:
+                        raise requests.HTTPError(f"HTTP {r.status_code}", response=r)
+                    r.raise_for_status()
+                    with tmp.open("wb") as f:
+                        for block in r.iter_content(chunk):
+                            f.write(block)
+                tmp.replace(dest)
+                return dest
+            except (
+                requests.ConnectionError,
+                requests.Timeout,
+                requests.exceptions.ChunkedEncodingError,
+            ) as exc:
+                last_exc = exc
+            except requests.HTTPError as exc:
+                if exc.response is not None and exc.response.status_code < 500:
+                    raise
+                last_exc = exc
+            if attempt < attempts - 1:
+                delay = backoff_s * 2**attempt
+                log.warning("Letöltési hiba (%s), újra %.0f s múlva: %s", last_exc, delay, url)
+                time.sleep(delay)
+        raise RuntimeError(f"Sikertelen letöltés {attempts} próbálkozás után: {url}: {last_exc}")

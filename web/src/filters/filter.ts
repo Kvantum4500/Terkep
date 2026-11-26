@@ -16,6 +16,8 @@ export interface FilterState {
   showcave: boolean
   kektura: boolean
   heritage: boolean
+  /** csak 360°-os képpel (Google-utcakép vagy nyílt gömbpanoráma) */
+  pano: boolean
 }
 
 export const DEFAULT_FILTERS: FilterState = {
@@ -26,6 +28,7 @@ export const DEFAULT_FILTERS: FilterState = {
   showcave: false,
   kektura: false,
   heritage: false,
+  pano: false,
 }
 
 export interface FilterResult {
@@ -69,8 +72,10 @@ export function applyFilters(index: PoiIndex, f: FilterState): FilterResult {
   const out = new Uint32Array(index.n)
   let k = 0
 
+  const panoMask = FLAG.streetview | FLAG.pano
   for (let i = 0; i < index.n; i++) {
     if (flagMask && (index.flags[i] & flagMask) !== flagMask) continue
+    if (f.pano && !(index.flags[i] & panoMask)) continue
     if (terms.length) {
       const hay = index.search[i]
       let ok = true
