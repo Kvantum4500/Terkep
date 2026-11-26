@@ -9,5 +9,6 @@
 overrides:
   Q977012:     {tier: 1}   # Tákosi református templom („mezítlábas Notre-Dame”)
   n4971890221: {tier: 1}   # Tiszakürti Arborétum (Wikidata-elem nélkül került be)
-exclude: []
+exclude:
+  - Q871818   # Cserehát – tájegység (a Wikidata csak „domb”-ként jelöli, kistáj-osztálya nincs)
 merge: []

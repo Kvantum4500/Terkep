@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import json
 import logging
+import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -95,6 +96,10 @@ def run(
     for cl in conf.clusters:
         poi = build_poi(cl)
         if poi is None:
+            continue
+        why = landscape_reason(cl)
+        if why:
+            dropped.append({"id": poi.id, "nev": poi.name, "ok": why})
             continue
         if not in_hu_bbox(poi.lat, poi.lon):
             dropped.append({"id": poi.id, "nev": poi.name, "ok": "országon kívül (bbox)"})
@@ -226,6 +231,39 @@ def write_reports(
         )
     lines += wikidata_only_peak_classes(conf)
     (out / "report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+# A csak Wikidatából jövő csúcsoknál ezek a névvégek tájegységet jeleznek, nem csúcsot.
+LANDSCAPE_SUFFIXES = ("dombság", "hegység", "hegyek")
+LANDSCAPE_PHRASES = ("természetvédelmi terület", "tájvédelmi körzet")
+
+
+def _tokens(name: str) -> list[str]:
+    return [t for t in re.split(r"[\s\-–/(),.]+", name.casefold()) if t]
+
+
+def landscape_reason(cl) -> str | None:
+    """Tájegység-e a csak Wikidatából (és hu-wikiből) jövő „csúcs”.
+
+    Ezeknek nincs OSM-pontjuk, és gyakran tájegységek (Zselic, Göcsej, Zalai-dombság),
+    amelyeket a Wikidata „domb”-ként is besorol. Jel: a Wikidata-osztály (kistáj,
+    középtáj, természetvédelmi terület – categories.yaml: wikidata_not_peak) vagy a
+    névvég. Az OSM-pontos csúcsokhoz nem nyúl (ott a hegy maga megvan)."""
+    if cl.cat != "csucs" or not cl.sources <= {"wikidata", "huwiki"}:
+        return None
+    item = next((r for r in cl.records if r.source == "wikidata"), None)
+    if item is None:
+        return None
+    not_peak = set(config.categories().get("wikidata_not_peak") or [])
+    hit = not_peak & set(item.extra.get("classes", []))
+    if hit:
+        return f"tájegység, nem csúcs (Wikidata-osztály: {', '.join(sorted(hit))})"
+    name = cl.name.casefold()
+    if any(t.endswith(sfx) for t in _tokens(name) for sfx in LANDSCAPE_SUFFIXES) or any(
+        ph in name for ph in LANDSCAPE_PHRASES
+    ):
+        return "tájegység, nem csúcs (név)"
+    return None
 
 
 def _class_labels() -> dict[str, dict[str, str]]:

@@ -306,3 +306,43 @@ def test_peak_class_report_lists_wikidata_only_peaks():
     assert "1 csúcsnak nincs OSM-pontja" in text
     assert "| Q82794 | régió / region | 1 | Zselic |" in text
     assert "Q8502" not in text and "Kékes" not in text
+
+
+def _wd_only_cluster(name, classes, extra_osm=False):
+    from terkep_pipeline import config
+    from terkep_pipeline.conflate import conflate
+    from terkep_pipeline.models import SourceRecord
+
+    recs = [
+        SourceRecord(
+            source="wikidata",
+            ref="Q9",
+            name=name,
+            lat=46.2,
+            lon=17.8,
+            cat="csucs",
+            wikidata="Q9",
+            extra={"classes": classes},
+        )
+    ]
+    if extra_osm:
+        recs.append(
+            SourceRecord(source="osm", ref="n9", name=name, lat=46.2, lon=17.8, cat="csucs", wikidata="Q9")
+        )
+    conf = conflate(recs, ["osm", "wikidata"], config.sources()["sources"])
+    return conf.clusters[0]
+
+
+def test_landscape_units_are_not_peaks():
+    from terkep_pipeline.build import landscape_reason
+
+    # kistáj-osztály (Zselic), középtáj (Zalai-dombság), névvég (Csíki-hegyek), TT
+    assert "Q1162817" in landscape_reason(_wd_only_cluster("Zselic", ["Q54050", "Q1162817"]))
+    assert landscape_reason(_wd_only_cluster("Zalai-dombság", ["Q54050"])) == "tájegység, nem csúcs (név)"
+    assert landscape_reason(_wd_only_cluster("Csíki-hegyek", ["Q54050"]))
+    assert landscape_reason(_wd_only_cluster("Rupp-hegy természetvédelmi terület", ["Q54050"]))
+    # valódi csúcsok maradnak (a Natura 2000 nem kizáró, a Nagy-Banyászó neve sem)
+    assert landscape_reason(_wd_only_cluster("Sár-hegy", ["Q207326", "Q15069452"])) is None
+    assert landscape_reason(_wd_only_cluster("Nagy-Banyászó", ["Q8502"])) is None
+    # OSM-pontos csúcshoz nem nyúl, akkor sem, ha a Wikidata-elem kistáj is
+    assert landscape_reason(_wd_only_cluster("Karancs", ["Q8502", "Q1162817"], extra_osm=True)) is None

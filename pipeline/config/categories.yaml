@@ -151,6 +151,15 @@ wikidata_classes:
   - {qid: Q8502,    label: mountain,             cat: csucs}
   - {qid: Q54050,   label: hill,                 cat: csucs}
   - {qid: Q207326,  label: summit,               cat: csucs}
+# A csak Wikidatából jövő „csúcs” (nincs OSM-pontja) nem csúcs, ha ezek közül is van
+# osztálya: a Wikidata a tájegységeket is „domb”-nak jelöli (a build-riport
+# „Csak Wikidatából jövő csúcsok osztályai” táblázata alapján). Az OSM-pontos
+# csúcsokra nem vonatkozik.
+wikidata_not_peak:
+  - Q1162817   # földrajzi kistáj (Zselic, Göcsej, Geresdi-dombság, Karancs-hegység)
+  - Q61045902  # földrajzi középtáj (Külső-Somogy, Zalai-dombság)
+  - Q179049    # természetvédelmi terület (Kaszonyi-hegy TT)
+
 wikidata_exclude:
   # Q-azonosítók, amelyek alosztályként bekerülnének, de nem kellenek
   # (pl. lakótorony-jellegű épületek, víztorony stb.). A pipeline tölti fel a
